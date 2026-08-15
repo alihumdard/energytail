@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - database
+        - routes
+
+    # Level 5 catches wrong argument types and undefined methods without
+    # demanding full generic annotations everywhere. Raise it once the
+    # codebase settles.
+    level: 5
+
+    ignoreErrors:
+        # Eloquent's dynamic relations and scopes trip static analysis in ways
+        # that are safe in practice. Add specific patterns here as they appear.
