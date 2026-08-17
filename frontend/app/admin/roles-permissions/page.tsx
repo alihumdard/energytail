@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import {
@@ -13,41 +13,112 @@ import {
   PenSquare,
   User,
   Check,
-  ChevronDown,
+  Loader2,
 } from "lucide-react";
+import { adminRoles } from "@/lib/api/endpoints";
+import { useApiResource } from "@/lib/hooks/useApiResource";
+import type { Role } from "@/lib/api/types";
 
-const roles = [
-  { key: "administrator", name: "Administrator", desc: "Full access to all features", badge: "System", count: null, icon: ShieldCheck, color: "text-blue-600", bg: "bg-blue-50" },
-  { key: "employer", name: "Employer", desc: "Manage company and jobs", badge: "124", count: "124", icon: Briefcase, color: "text-emerald-600", bg: "bg-emerald-50" },
-  { key: "jobseeker", name: "Job Seeker", desc: "Search and apply for jobs", badge: "3,246", count: "3,246", icon: Search, color: "text-orange-600", bg: "bg-orange-50" },
-  { key: "author", name: "Article Author", desc: "Create and manage articles", badge: "89", count: "89", icon: PenSquare, color: "text-purple-600", bg: "bg-purple-50" },
-  { key: "guest", name: "Guest", desc: "Limited public access", badge: "0", count: "0", icon: User, color: "text-slate-400", bg: "bg-slate-100" },
-];
+const DETAIL_TABS = ["Permissions", "Users"];
 
-const detailTabs = ["Role Details", "Permissions", "Users", "Activity Log"];
+/** Icon and colour per seeded role; custom roles fall back to the last entry. */
+const ROLE_VISUALS: Record<string, { icon: typeof ShieldCheck; color: string; bg: string }> = {
+  administrator: { icon: ShieldCheck, color: "text-blue-600", bg: "bg-blue-50" },
+  employer: { icon: Briefcase, color: "text-emerald-600", bg: "bg-emerald-50" },
+  job_seeker: { icon: Search, color: "text-orange-600", bg: "bg-orange-50" },
+  author: { icon: PenSquare, color: "text-purple-600", bg: "bg-purple-50" },
+  guest: { icon: User, color: "text-slate-400", bg: "bg-slate-100" },
+};
 
-const columns = ["View", "Add", "Edit", "Delete", "Approve", "Export", "Settings"];
-
-const modules = [
-  { name: "Dashboard", desc: "View dashboard and analytics", icon: "🏠", perms: [true, true, true, true, true, true, true] },
-  { name: "Users", desc: "Manage platform users", icon: "👥", perms: [true, true, true, true, true, true, true] },
-  { name: "Companies", desc: "Manage companies", icon: "🏢", perms: [true, true, true, true, true, true, true] },
-  { name: "Jobs", desc: "Manage job listings", icon: "💼", perms: [true, true, true, true, true, true, true] },
-  { name: "Articles", desc: "Manage articles and content", icon: "📄", perms: [true, true, true, true, true, true, true] },
-  { name: "Categories", desc: "Manage categories & taxonomy", icon: "🗂️", perms: [true, true, true, true, true, true, true] },
-  { name: "Settings", desc: "Manage system settings", icon: "⚙️", perms: [true, true, true, true, true, true, true] },
-  { name: "Roles & Permissions", desc: "Manage roles and permissions", icon: "🛡️", perms: [true, true, true, null, null, true, true] },
-  { name: "Audit Logs", desc: "View audit logs", icon: "📋", perms: [true, null, null, null, null, null, null] },
-];
-
-function ModuleIcon({ icon }: { icon: string }) {
-  return <span className="text-base leading-none">{icon}</span>;
-}
+const FALLBACK_VISUAL = { icon: User, color: "text-slate-500", bg: "bg-slate-100" };
 
 export default function RolesPermissionsPage() {
-  const [activeRole, setActiveRole] = useState("administrator");
+  const [activeRoleId, setActiveRoleId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("Permissions");
-  const role = roles.find((r) => r.key === activeRole)!;
+
+  /** Working copy of the grid; only written back on save. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const { data: rolesResponse, loading: rolesLoading, refetch: refetchRoles } =
+    useApiResource(() => adminRoles.list(), []);
+
+  const { data: matrixResponse, loading: matrixLoading } = useApiResource(
+    () => adminRoles.matrix(),
+    [],
+  );
+
+  const roles = useMemo(() => rolesResponse?.data ?? [], [rolesResponse]);
+  const matrix = matrixResponse?.data;
+
+  // Select the first role once the list arrives.
+  useEffect(() => {
+    if (activeRoleId === null && roles.length > 0) {
+      setActiveRoleId(roles[0].id);
+    }
+  }, [roles, activeRoleId]);
+
+  const activeRole: Role | undefined = roles.find((r) => r.id === activeRoleId);
+
+  // Loads the selected role's permissions into the working copy.
+  const { data: roleDetail, loading: detailLoading } = useApiResource(
+    () => (activeRoleId ? adminRoles.get(activeRoleId) : Promise.resolve(null)),
+    [activeRoleId],
+  );
+
+  useEffect(() => {
+    if (roleDetail?.data?.permissions) {
+      setSelected(new Set(roleDetail.data.permissions));
+      setSaved(false);
+      setSaveError(null);
+    }
+  }, [roleDetail]);
+
+  const { data: roleUsers } = useApiResource(
+    () =>
+      activeRoleId && activeTab === "Users"
+        ? adminRoles.users(activeRoleId, { per_page: 25 })
+        : Promise.resolve(null),
+    [activeRoleId, activeTab],
+  );
+
+  // The administrator role is deliberately locked: stripping it would leave
+  // nobody able to administer the platform, and the API refuses the write.
+  const locked = activeRole?.name === "administrator";
+
+  function toggle(permission: string) {
+    if (locked) return;
+
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(permission) ? next.delete(permission) : next.add(permission);
+      return next;
+    });
+    setSaved(false);
+  }
+
+  async function save() {
+    if (!activeRoleId) return;
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // One request for the whole grid, matching the single Save button.
+      await adminRoles.syncPermissions(activeRoleId, [...selected]);
+      setSaved(true);
+      await refetchRoles();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save permissions.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const actions = matrix?.actions ?? [];
+  const modules = matrix?.modules ?? [];
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -57,12 +128,12 @@ export default function RolesPermissionsPage() {
         <AdminTopbar variant="dark" />
 
         <main className="flex-1 p-4 sm:p-6 space-y-6">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Roles &amp; Permissions</h1>
               <p className="text-sm text-slate-400 mt-1">
-                Dashboard <span className="mx-1">&gt;</span> <span className="text-slate-600">Roles &amp; Permissions</span>
+                Dashboard <span className="mx-1">&gt;</span>{" "}
+                <span className="text-slate-600">Roles &amp; Permissions</span>
               </p>
             </div>
             <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg px-4 py-2.5 text-sm shrink-0">
@@ -71,7 +142,8 @@ export default function RolesPermissionsPage() {
             </button>
           </div>
           <p className="text-sm text-slate-500 -mt-4">
-            Manage user roles and their permissions. Control what each role can access and modify across the platform.
+            Manage user roles and their permissions. Control what each role can access and modify
+            across the platform.
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
@@ -79,37 +151,58 @@ export default function RolesPermissionsPage() {
             <div className="bg-white rounded-2xl border border-slate-100 p-4">
               <div className="flex items-center gap-2 px-1 mb-3">
                 <span className="font-semibold text-slate-900">Roles</span>
-                <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">{roles.length}</span>
+                <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">
+                  {roles.length}
+                </span>
               </div>
+
+              {rolesLoading && (
+                <div className="py-8 text-center text-sm text-slate-400">Loading roles…</div>
+              )}
+
               <div className="space-y-1.5">
                 {roles.map((r) => {
-                  const isActive = r.key === activeRole;
+                  const isActive = r.id === activeRoleId;
+                  const visual = ROLE_VISUALS[r.name] ?? FALLBACK_VISUAL;
+                  const Icon = visual.icon;
+
                   return (
                     <button
-                      key={r.key}
-                      onClick={() => setActiveRole(r.key)}
+                      key={r.id}
+                      onClick={() => setActiveRoleId(r.id)}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${
-                        isActive ? "bg-blue-50 border border-blue-100" : "border border-transparent hover:bg-slate-50"
+                        isActive
+                          ? "bg-blue-50 border border-blue-100"
+                          : "border border-transparent hover:bg-slate-50"
                       }`}
                     >
-                      <div className={`w-9 h-9 rounded-lg ${r.bg} flex items-center justify-center shrink-0`}>
-                        <r.icon className={`w-[18px] h-[18px] ${r.color}`} />
+                      <div
+                        className={`w-9 h-9 rounded-lg ${visual.bg} flex items-center justify-center shrink-0`}
+                      >
+                        <Icon className={`w-[18px] h-[18px] ${visual.color}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-semibold ${isActive ? "text-blue-600" : "text-slate-800"}`}>{r.name}</div>
-                        <div className="text-xs text-slate-400 truncate">{r.desc}</div>
+                        <div
+                          className={`text-sm font-semibold ${isActive ? "text-blue-600" : "text-slate-800"}`}
+                        >
+                          {r.label}
+                        </div>
+                        <div className="text-xs text-slate-400 truncate">{r.description}</div>
                       </div>
                       <span
                         className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                          r.badge === "System" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+                          r.is_system
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-slate-100 text-slate-500"
                         }`}
                       >
-                        {r.badge}
+                        {r.is_system ? "System" : (r.users_count ?? 0).toLocaleString()}
                       </span>
                     </button>
                   );
                 })}
               </div>
+
               <button className="w-full flex items-center justify-center gap-2 mt-3 border-2 border-dashed border-slate-200 rounded-xl py-3 text-sm font-medium text-slate-500 hover:bg-slate-50">
                 <Plus className="w-4 h-4" />
                 Add New Role
@@ -119,12 +212,14 @@ export default function RolesPermissionsPage() {
             {/* Detail panel */}
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
               <div className="flex items-center gap-6 overflow-x-auto whitespace-nowrap px-5 border-b border-slate-100">
-                {detailTabs.map((t) => (
+                {DETAIL_TABS.map((t) => (
                   <button
                     key={t}
                     onClick={() => setActiveTab(t)}
                     className={`py-3.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                      activeTab === t ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                      activeTab === t
+                        ? "border-blue-600 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     {t}
@@ -135,89 +230,186 @@ export default function RolesPermissionsPage() {
               <div className="p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">{role.name} Permissions</h2>
-                    <p className="text-sm text-slate-400 mt-0.5">Define what actions the {role.name} role can perform.</p>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      {activeRole?.label ?? "Role"} Permissions
+                    </h2>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      Define what actions the {activeRole?.label ?? "selected"} role can perform.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <button className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3.5 py-2">
-                      All Permissions
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                    <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg px-4 py-2 text-sm">
-                      <Save className="w-4 h-4" />
-                      Save Changes
-                    </button>
-                  </div>
+
+                  {activeTab === "Permissions" && (
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {saved && (
+                        <span className="text-sm font-medium text-emerald-600">Saved</span>
+                      )}
+                      <button
+                        onClick={save}
+                        disabled={saving || locked || detailLoading}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg px-4 py-2 text-sm"
+                      >
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save Changes
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-5 overflow-x-auto">
-                  <table className="w-full text-sm min-w-[600px]">
-                    <thead>
-                      <tr className="text-left text-slate-400 border-b border-slate-100">
-                        <th className="py-3 font-medium">Modules</th>
-                        {columns.map((c) => (
-                          <th key={c} className="py-3 font-medium text-center w-[11%]">
-                            {c}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {modules.map((m) => (
-                        <tr key={m.name} className="border-b border-slate-50 last:border-0">
-                          <td className="py-3.5 pr-3">
-                            <div className="flex items-center gap-3">
-                              <span className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-                                <ModuleIcon icon={m.icon} />
-                              </span>
-                              <div>
-                                <div className="font-medium text-slate-800">{m.name}</div>
-                                <div className="text-xs text-slate-400">{m.desc}</div>
-                              </div>
-                            </div>
-                          </td>
-                          {m.perms.map((checked, i) => (
-                            <td key={i} className="text-center">
-                              {checked === null ? (
-                                <span className="text-slate-300">—</span>
-                              ) : (
-                                <button
-                                  className={`w-5 h-5 rounded-md inline-flex items-center justify-center ${
-                                    checked ? "bg-blue-600" : "border border-slate-300"
-                                  }`}
-                                >
-                                  {checked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                                </button>
-                              )}
-                            </td>
+                {saveError && (
+                  <div
+                    role="alert"
+                    className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  >
+                    {saveError}
+                  </div>
+                )}
+
+                {locked && activeTab === "Permissions" && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    The Administrator role always holds every permission and cannot be edited —
+                    otherwise the platform could be left with nobody able to administer it.
+                  </div>
+                )}
+
+                {activeTab === "Permissions" && (
+                  <div className="mt-5 overflow-x-auto">
+                    {matrixLoading || detailLoading ? (
+                      <div className="py-12 text-center text-sm text-slate-400">
+                        Loading permissions…
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm min-w-[600px]">
+                        <thead>
+                          <tr className="text-left text-slate-400 border-b border-slate-100">
+                            <th className="py-3 font-medium">Modules</th>
+                            {actions.map((a) => (
+                              <th
+                                key={a.key}
+                                title={a.description}
+                                className="py-3 font-medium text-center w-[11%]"
+                              >
+                                {a.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modules.map((m) => (
+                            <tr key={m.key} className="border-b border-slate-50 last:border-0">
+                              <td className="py-3.5 pr-3">
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <div className="font-medium text-slate-800">{m.label}</div>
+                                    <div className="text-xs text-slate-400">{m.description}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              {actions.map((a) => {
+                                const cell = m.actions[a.key];
+
+                                // An unavailable cell means the action does not
+                                // apply to this module — an audit log cannot be
+                                // edited — so it shows a dash, not a checkbox.
+                                if (!cell?.available || !cell.permission) {
+                                  return (
+                                    <td key={a.key} className="text-center">
+                                      <span className="text-slate-300">—</span>
+                                    </td>
+                                  );
+                                }
+
+                                const checked = locked || selected.has(cell.permission);
+
+                                return (
+                                  <td key={a.key} className="text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggle(cell.permission!)}
+                                      disabled={locked}
+                                      aria-pressed={checked}
+                                      aria-label={`${a.label} ${m.label}`}
+                                      className={`w-5 h-5 rounded-md inline-flex items-center justify-center transition-colors ${
+                                        checked ? "bg-blue-600" : "border border-slate-300 hover:border-blue-400"
+                                      } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
+                                    >
+                                      {checked && (
+                                        <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                                      )}
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
 
-                <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
-                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <div className="text-xs text-slate-600 leading-relaxed">
-                    <span className="font-semibold text-slate-800">About Permissions</span>
-                    <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
-                      <span><span className="font-semibold text-slate-700">View:</span> Can view the module</span>
-                      <span><span className="font-semibold text-slate-700">Add:</span> Can create new records</span>
-                      <span><span className="font-semibold text-slate-700">Edit:</span> Can edit existing records</span>
-                      <span><span className="font-semibold text-slate-700">Delete:</span> Can delete records</span>
-                      <span><span className="font-semibold text-slate-700">Approve:</span> Can approve/reject records</span>
-                      <span><span className="font-semibold text-slate-700">Export:</span> Can export data</span>
-                      <span><span className="font-semibold text-slate-700">Settings:</span> Can manage module settings</span>
+                {activeTab === "Users" && (
+                  <div className="mt-5">
+                    {!roleUsers || roleUsers.data.length === 0 ? (
+                      <p className="py-12 text-center text-sm text-slate-400">
+                        No users hold this role.
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-slate-50">
+                        {roleUsers.data.map((u) => (
+                          <li key={u.id} className="flex items-center gap-3 py-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-500">
+                              {u.full_name
+                                .split(" ")
+                                .map((w) => w[0])
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .join("")
+                                .toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-800 truncate">
+                                {u.full_name}
+                              </div>
+                              <div className="text-xs text-slate-400 truncate">{u.email}</div>
+                            </div>
+                            <span
+                              className={`ml-auto text-xs font-medium ${u.status === "active" ? "text-emerald-600" : "text-red-500"}`}
+                            >
+                              {u.status === "active" ? "Active" : "Suspended"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "Permissions" && (
+                  <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
+                    <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-slate-600 leading-relaxed">
+                      <span className="font-semibold text-slate-800">About Permissions</span>
+                      <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
+                        {actions.map((a) => (
+                          <span key={a.key}>
+                            <span className="font-semibold text-slate-700">{a.label}:</span>{" "}
+                            {a.description}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
-            <span>© 2025 Energy Tail. All rights reserved.</span>
+            <span>© 2026 Energy Tail. All rights reserved.</span>
             <span>Version 1.0.0</span>
           </div>
         </main>
