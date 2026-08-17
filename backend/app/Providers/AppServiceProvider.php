@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Listeners\LogAuthenticationEvents;
 use App\Models\ArticleCategory;
 use App\Models\City;
 use App\Models\Country;
@@ -10,8 +11,15 @@ use App\Models\JobCategory;
 use App\Models\Skill;
 use App\Models\Tag;
 use App\Observers\TaxonomyCacheObserver;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,6 +34,21 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureRateLimiting();
         $this->registerObservers();
+        $this->registerAuthAuditListeners();
+    }
+
+    /**
+     * Authentication events feed the audit log's "Auth" module, which the
+     * admin screen shows alongside model changes.
+     */
+    private function registerAuthAuditListeners(): void
+    {
+        Event::listen(Login::class, [LogAuthenticationEvents::class, 'handleLogin']);
+        Event::listen(Logout::class, [LogAuthenticationEvents::class, 'handleLogout']);
+        Event::listen(Failed::class, [LogAuthenticationEvents::class, 'handleFailed']);
+        Event::listen(Registered::class, [LogAuthenticationEvents::class, 'handleRegistered']);
+        Event::listen(Verified::class, [LogAuthenticationEvents::class, 'handleVerified']);
+        Event::listen(PasswordReset::class, [LogAuthenticationEvents::class, 'handlePasswordReset']);
     }
 
     /**

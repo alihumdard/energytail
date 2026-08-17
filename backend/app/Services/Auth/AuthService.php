@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,24 +51,34 @@ class AuthService
         // One message for both "no such user" and "wrong password", so the
         // response cannot be used to discover which emails are registered.
         if (! $user || ! Hash::check($password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['These credentials do not match our records.'],
-            ]);
+            $this->fail($email, $user, 'These credentials do not match our records.');
         }
 
         if ($user->isSuspended()) {
-            throw ValidationException::withMessages([
-                'email' => ['This account has been suspended. Contact support for help.'],
-            ]);
+            $this->fail($email, $user, 'This account has been suspended. Contact support for help.');
         }
 
         if ($user->trashed()) {
-            throw ValidationException::withMessages([
-                'email' => ['This account is no longer active.'],
-            ]);
+            $this->fail($email, $user, 'This account is no longer active.');
         }
 
         return $user;
+    }
+
+    /**
+     * Rejects a sign-in attempt, announcing it first.
+     *
+     * The Failed event is what puts the attempt in the audit log. Without it
+     * a brute-force run would leave no trace, since every attempt is a plain
+     * validation error as far as the HTTP layer is concerned.
+     *
+     * @throws ValidationException
+     */
+    private function fail(string $email, ?User $user, string $message): never
+    {
+        event(new Failed('web', $user, ['email' => $email]));
+
+        throw ValidationException::withMessages(['email' => [$message]]);
     }
 
     /** Records sign-in metadata for the admin users screen and audit log. */

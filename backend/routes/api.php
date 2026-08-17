@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
+use App\Http\Controllers\Api\V1\Admin\SettingController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\ArticleCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\CityController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\CountryController;
@@ -9,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\Taxonomy\IndustryController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\JobCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\SkillController;
 use App\Http\Controllers\Api\V1\Admin\Taxonomy\TagController;
+use App\Http\Controllers\Api\V1\Admin\UserController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
@@ -115,6 +118,35 @@ Route::prefix('admin')->name('api.admin.')
         Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
 
         /*
+        | Users
+        */
+        Route::get('/users/stats', [UserController::class, 'stats'])->name('users.stats');
+        Route::get('/users/export', [UserController::class, 'export'])->name('users.export');
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::patch('/users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status');
+        Route::post('/users/{user}/password-reset', [UserController::class, 'sendPasswordReset'])
+            ->name('users.password_reset');
+
+        /*
+        | Settings
+        */
+        Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::post('/settings/file', [SettingController::class, 'uploadFile'])->name('settings.file');
+
+        /*
+        | Audit logs
+        */
+        Route::get('/audit-logs/filters', [AuditLogController::class, 'filters'])->name('audit.filters');
+        Route::get('/audit-logs/stats', [AuditLogController::class, 'stats'])->name('audit.stats');
+        Route::get('/audit-logs/export', [AuditLogController::class, 'export'])->name('audit.export');
+        Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit.index');
+
+        /*
         | Taxonomy resources. All six share BaseTaxonomyController, so the
         | route shape is identical and registered from one loop rather than
         | repeated six times.
@@ -155,6 +187,9 @@ Route::prefix('admin')->name('api.admin.')
 | category landing pages on the public site.
 |
 */
+
+// Site name, logo, contact details — read on every page of the frontend.
+Route::get('/settings', [SettingController::class, 'publicSettings'])->name('api.settings.public');
 
 Route::prefix('taxonomies')->name('api.taxonomies.')->group(function () {
     Route::get('/', [PublicTaxonomyController::class, 'all'])->name('all');
