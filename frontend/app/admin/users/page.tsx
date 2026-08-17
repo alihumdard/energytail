@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import {
@@ -9,7 +9,8 @@ import {
   Search,
   Eye,
   Pencil,
-  MoreVertical,
+  Ban,
+  RotateCcw,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -19,50 +20,238 @@ import {
   FileText,
   ShieldCheck,
 } from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-} from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { adminUsers } from "@/lib/api/endpoints";
+import { useApiResource, useDebounced } from "@/lib/hooks/useApiResource";
+import { API_URL } from "@/lib/api/client";
+import type { User } from "@/lib/api/types";
 
-const tabs = ["All Users", "Job Seekers", "Employers", "Article Authors", "Administrators"];
-
-const summaryCards = [
-  { label: "Total Users", value: "2,846", change: "+18.6%", icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-  { label: "Job Seekers", value: "1,932", change: "+15.2%", icon: UserRound, color: "text-emerald-600", bg: "bg-emerald-50" },
-  { label: "Employers", value: "712", change: "+12.8%", icon: Building2, color: "text-purple-600", bg: "bg-purple-50" },
-  { label: "Article Authors", value: "156", change: "+9.4%", icon: FileText, color: "text-orange-600", bg: "bg-orange-50" },
-  { label: "Administrators", value: "46", change: "+6.1%", icon: ShieldCheck, color: "text-red-500", bg: "bg-red-50" },
-];
-
-const users = [
-  { name: "Michael Brown", email: "michael.brown@example.com", role: "Job Seeker", status: "Active", verified: true, joined: "May 18, 2025 10:30 AM", active: "2 hours ago" },
-  { name: "Sarah Johnson", email: "sarah.johnson@example.com", role: "Job Seeker", status: "Active", verified: true, joined: "May 17, 2025 04:15 PM", active: "1 day ago" },
-  { name: "PetroEnergy Solutions", email: "hr@petroenergy.com", role: "Employer", status: "Active", verified: true, joined: "May 16, 2025 11:20 AM", active: "3 hours ago" },
-  { name: "Global Oil Services", email: "careers@gos.com", role: "Employer", status: "Active", verified: true, joined: "May 15, 2025 09:45 AM", active: "5 hours ago" },
-  { name: "Emily Davis", email: "emily.davis@example.com", role: "Job Seeker", status: "Inactive", verified: false, joined: "May 14, 2025 02:30 PM", active: "2 weeks ago" },
-  { name: "John Smith", email: "john.smith@example.com", role: "Article Author", status: "Active", verified: true, joined: "May 14, 2025 10:05 AM", active: "1 day ago" },
-  { name: "Lisa Wilson", email: "lisa.wilson@example.com", role: "Article Author", status: "Active", verified: true, joined: "May 13, 2025 01:15 PM", active: "3 days ago" },
-  { name: "Admin User", email: "admin@energytail.com", role: "Administrator", status: "Active", verified: true, joined: "May 10, 2025 09:00 AM", active: "Now" },
-];
-
-const roleStyle: Record<string, string> = {
-  "Job Seeker": "bg-emerald-50 text-emerald-600",
-  Employer: "bg-blue-50 text-blue-600",
-  "Article Author": "bg-orange-50 text-orange-600",
-  Administrator: "bg-red-50 text-red-600",
+const ROLE_STYLE: Record<string, string> = {
+  job_seeker: "bg-emerald-50 text-emerald-600",
+  employer: "bg-blue-50 text-blue-600",
+  author: "bg-orange-50 text-orange-600",
+  administrator: "bg-red-50 text-red-600",
+  guest: "bg-slate-100 text-slate-500",
 };
 
-const pieData = [
-  { name: "Job Seekers", value: 1932, color: "#10b981" },
-  { name: "Employers", value: 712, color: "#2563eb" },
-  { name: "Article Authors", value: 156, color: "#f59e0b" },
-  { name: "Administrators", value: 46, color: "#ef4444" },
+const ROLE_LABEL: Record<string, string> = {
+  job_seeker: "Job Seeker",
+  employer: "Employer",
+  author: "Article Author",
+  administrator: "Administrator",
+  guest: "Guest",
+};
+
+/** Tabs map to the role filter the API already supports. */
+const TABS: { label: string; role?: string }[] = [
+  { label: "All Users" },
+  { label: "Job Seekers", role: "job_seeker" },
+  { label: "Employers", role: "employer" },
+  { label: "Article Authors", role: "author" },
+  { label: "Administrators", role: "administrator" },
 ];
+
+const CARD_META: Record<string, { icon: typeof Users; color: string; bg: string }> = {
+  job_seeker: { icon: UserRound, color: "text-emerald-600", bg: "bg-emerald-50" },
+  employer: { icon: Building2, color: "text-purple-600", bg: "bg-purple-50" },
+  author: { icon: FileText, color: "text-orange-600", bg: "bg-orange-50" },
+  administrator: { icon: ShieldCheck, color: "text-red-500", bg: "bg-red-50" },
+};
+
+const PIE_COLORS: Record<string, string> = {
+  job_seeker: "#10b981",
+  employer: "#2563eb",
+  author: "#f59e0b",
+  administrator: "#ef4444",
+  guest: "#94a3b8",
+};
+
+interface RoleCount {
+  role: string;
+  label: string;
+  total: number | string;
+}
+
+interface UserStats {
+  total: number;
+  active: number;
+  suspended: number;
+  unverified: number;
+  by_role: RoleCount[];
+  recent_signups: number;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** "2 hours ago" style label for the Last Active column. */
+function relativeTime(iso: string | null): string {
+  if (!iso) return "Never";
+
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+
+  if (seconds < 60) return "Just now";
+
+  const units: [number, Intl.RelativeTimeFormatUnit][] = [
+    [60, "minute"],
+    [3600, "hour"],
+    [86400, "day"],
+    [604800, "week"],
+    [2592000, "month"],
+  ];
+
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+  for (let i = units.length - 1; i >= 0; i--) {
+    const [divisor, unit] = units[i];
+    if (seconds >= divisor) {
+      return formatter.format(-Math.floor(seconds / divisor), unit);
+    }
+  }
+
+  return formatter.format(-Math.floor(seconds / 60), "minute");
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((word) => word[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 export default function UsersManagementPage() {
   const [activeTab, setActiveTab] = useState("All Users");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [verified, setVerified] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const debouncedSearch = useDebounced(search);
+  const tabRole = TABS.find((t) => t.label === activeTab)?.role;
+
+  const {
+    data: list,
+    loading,
+    error,
+    refetch,
+  } = useApiResource(
+    () =>
+      adminUsers.list({
+        page,
+        per_page: perPage,
+        search: debouncedSearch || undefined,
+        role: tabRole,
+        status: status || undefined,
+        verified: verified || undefined,
+      }),
+    [page, perPage, debouncedSearch, tabRole, status, verified],
+  );
+
+  const { data: statsResponse, refetch: refetchStats } = useApiResource(
+    () => adminUsers.stats(),
+    [],
+  );
+
+  const stats = statsResponse?.data as unknown as UserStats | undefined;
+
+  const summaryCards = useMemo(() => {
+    const cards = [
+      {
+        label: "Total Users",
+        value: stats?.total ?? 0,
+        icon: Users,
+        color: "text-blue-600",
+        bg: "bg-blue-50",
+      },
+    ];
+
+    for (const row of stats?.by_role ?? []) {
+      const meta = CARD_META[row.role];
+      if (!meta) continue;
+
+      cards.push({
+        label: ROLE_LABEL[row.role] ?? row.label,
+        value: Number(row.total),
+        icon: meta.icon,
+        color: meta.color,
+        bg: meta.bg,
+      });
+    }
+
+    return cards;
+  }, [stats]);
+
+  const pieData = useMemo(
+    () =>
+      (stats?.by_role ?? []).map((row) => ({
+        name: ROLE_LABEL[row.role] ?? row.label,
+        value: Number(row.total),
+        color: PIE_COLORS[row.role] ?? "#94a3b8",
+      })),
+    [stats],
+  );
+
+  const totalUsers = stats?.total ?? 0;
+
+  async function toggleStatus(user: User) {
+    const next = user.status === "active" ? "suspended" : "active";
+
+    const reason =
+      next === "suspended"
+        ? window.prompt(`Why is ${user.full_name} being suspended?`) ?? undefined
+        : undefined;
+
+    // A null return from prompt means the admin cancelled.
+    if (next === "suspended" && reason === undefined) return;
+
+    setBusyId(user.id);
+
+    try {
+      await adminUsers.setStatus(user.id, next, reason);
+      await Promise.all([refetch(), refetchStats()]);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not update the user.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setStatus("");
+    setVerified("");
+    setActiveTab("All Users");
+    setPage(1);
+  }
+
+  const users = list?.data ?? [];
+  const meta = list?.meta;
+  const lastPage = meta?.last_page ?? 1;
+
+  // A short window around the current page, so pagination stays usable at
+  // any size without rendering hundreds of buttons.
+  const pageNumbers = useMemo(() => {
+    const pages: number[] = [];
+    const from = Math.max(1, page - 1);
+    const to = Math.min(lastPage, from + 2);
+
+    for (let p = from; p <= to; p++) pages.push(p);
+
+    return pages;
+  }, [page, lastPage]);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -88,17 +277,20 @@ export default function UsersManagementPage() {
 
           {/* Tabs */}
           <div className="flex items-center gap-6 border-b border-slate-100 overflow-x-auto">
-            {tabs.map((t) => (
+            {TABS.map((t) => (
               <button
-                key={t}
-                onClick={() => setActiveTab(t)}
+                key={t.label}
+                onClick={() => {
+                  setActiveTab(t.label);
+                  setPage(1);
+                }}
                 className={`pb-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
-                  activeTab === t
+                  activeTab === t.label
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
               >
-                {t}
+                {t.label}
               </button>
             ))}
           </div>
@@ -111,8 +303,9 @@ export default function UsersManagementPage() {
                   <s.icon className={`w-5 h-5 ${s.color}`} />
                 </div>
                 <div className="mt-3 text-sm text-slate-500">{s.label}</div>
-                <div className="text-2xl font-bold text-slate-900 mt-0.5">{s.value}</div>
-                <div className="text-xs text-emerald-600 font-medium mt-1">{s.change} vs last month</div>
+                <div className="text-2xl font-bold text-slate-900 mt-0.5">
+                  {s.value.toLocaleString()}
+                </div>
               </div>
             ))}
           </div>
@@ -121,25 +314,25 @@ export default function UsersManagementPage() {
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
             <div className="min-w-0 bg-white rounded-2xl border border-slate-100 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <select className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600">
-                    <option>Bulk Actions</option>
-                    <option>Activate</option>
-                    <option>Deactivate</option>
-                    <option>Delete</option>
-                  </select>
-                  <button className="text-sm font-medium text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50">
-                    Apply
-                  </button>
+                <div className="text-sm text-slate-500">
+                  {meta ? `${meta.total.toLocaleString()} user${meta.total === 1 ? "" : "s"}` : "Loading…"}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <button className="flex items-center gap-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3.5 py-2 hover:bg-slate-50">
+                  <a
+                    href={`${API_URL}/api/v1/admin/users/export`}
+                    className="flex items-center gap-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3.5 py-2 hover:bg-slate-50"
+                  >
                     <Download className="w-4 h-4" />
                     Export
-                  </button>
+                  </a>
                   <div className="relative">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPage(1);
+                      }}
                       placeholder="Search users..."
                       className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
@@ -151,10 +344,7 @@ export default function UsersManagementPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-100">
-                      <th className="px-4 py-3 font-medium w-8">
-                        <input type="checkbox" className="rounded border-slate-300" />
-                      </th>
-                      <th className="px-2 py-3 font-medium">User</th>
+                      <th className="px-4 py-3 font-medium">User</th>
                       <th className="px-2 py-3 font-medium">Role</th>
                       <th className="px-2 py-3 font-medium">Status</th>
                       <th className="px-2 py-3 font-medium">Email Verified</th>
@@ -164,84 +354,195 @@ export default function UsersManagementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => (
-                      <tr key={u.email} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                        <td className="px-4 py-3.5">
-                          <input type="checkbox" className="rounded border-slate-300" />
-                        </td>
-                        <td className="px-2 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 shrink-0 flex items-center justify-center text-[11px] font-semibold text-slate-500">
-                              {u.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-medium text-slate-800 truncate">{u.name}</div>
-                              <div className="text-xs text-slate-400 truncate">{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-2 py-3.5">
-                          <span className={`text-xs font-medium px-2 py-1 rounded ${roleStyle[u.role]}`}>{u.role}</span>
-                        </td>
-                        <td className="px-2 py-3.5">
-                          <span className={`flex items-center gap-1.5 text-xs font-medium ${u.status === "Active" ? "text-emerald-600" : "text-red-500"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${u.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3.5">
-                          <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-white text-[10px] ${u.verified ? "bg-emerald-500" : "bg-red-500"}`}>
-                            {u.verified ? "✓" : "✕"}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3.5 text-slate-500 whitespace-nowrap">{u.joined}</td>
-                        <td className="px-2 py-3.5 text-slate-500 whitespace-nowrap">{u.active}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                          </div>
+                    {loading && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                          Loading users…
                         </td>
                       </tr>
-                    ))}
+                    )}
+
+                    {!loading && error && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-10 text-center">
+                          <p className="text-sm text-red-600">{error.message}</p>
+                          <button
+                            onClick={() => refetch()}
+                            className="mt-2 text-sm font-medium text-blue-600 hover:underline"
+                          >
+                            Try again
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+
+                    {!loading && !error && users.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                          No users match these filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {!loading &&
+                      !error &&
+                      users.map((u) => {
+                        const role = u.roles[0] ?? "guest";
+                        const isActive = u.status === "active";
+
+                        return (
+                          <tr
+                            key={u.id}
+                            className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50"
+                          >
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 shrink-0 flex items-center justify-center text-[11px] font-semibold text-slate-500">
+                                  {initials(u.full_name)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-800 truncate">
+                                    {u.full_name}
+                                  </div>
+                                  <div className="text-xs text-slate-400 truncate">{u.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-2 py-3.5">
+                              <span
+                                className={`text-xs font-medium px-2 py-1 rounded ${ROLE_STYLE[role] ?? ROLE_STYLE.guest}`}
+                              >
+                                {ROLE_LABEL[role] ?? role}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3.5">
+                              <span
+                                className={`flex items-center gap-1.5 text-xs font-medium ${isActive ? "text-emerald-600" : "text-red-500"}`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-red-500"}`}
+                                />
+                                {isActive ? "Active" : "Suspended"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3.5">
+                              <span
+                                className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-white text-[10px] ${u.email_verified ? "bg-emerald-500" : "bg-red-500"}`}
+                                title={u.email_verified ? "Verified" : "Not verified"}
+                              >
+                                {u.email_verified ? "✓" : "✕"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3.5 text-slate-500 whitespace-nowrap">
+                              {formatDate(u.created_at)}
+                            </td>
+                            <td className="px-2 py-3.5 text-slate-500 whitespace-nowrap">
+                              {relativeTime(u.last_login_at)}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                  title="View"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                  title="Edit"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => toggleStatus(u)}
+                                  disabled={busyId === u.id}
+                                  title={isActive ? "Suspend" : "Reactivate"}
+                                  className={`p-1.5 rounded-md disabled:opacity-40 ${
+                                    isActive
+                                      ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                      : "text-slate-400 hover:bg-emerald-50 hover:text-emerald-600"
+                                  }`}
+                                >
+                                  {isActive ? (
+                                    <Ban className="w-4 h-4" />
+                                  ) : (
+                                    <RotateCcw className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100">
-                <div className="text-xs text-slate-500">Showing 1 to 10 of 2,846 users</div>
+                <div className="text-xs text-slate-500">
+                  {meta && meta.total > 0
+                    ? `Showing ${(meta.current_page - 1) * meta.per_page + 1} to ${Math.min(
+                        meta.current_page * meta.per_page,
+                        meta.total,
+                      )} of ${meta.total.toLocaleString()} users`
+                    : "No results"}
+                </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <button className="p-1.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="p-1.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40"
+                  >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  {[1, 2, 3].map((p) => (
+
+                  {pageNumbers.map((p) => (
                     <button
                       key={p}
+                      onClick={() => setPage(p)}
                       className={`w-8 h-8 rounded-md text-xs font-medium ${
-                        p === 1 ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        p === page
+                          ? "bg-blue-600 text-white"
+                          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       {p}
                     </button>
                   ))}
-                  <span className="text-slate-400 text-xs px-1">...</span>
-                  <button className="w-8 h-8 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                    285
-                  </button>
-                  <button className="p-1.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50">
+
+                  {lastPage > 3 && page < lastPage - 1 && (
+                    <>
+                      <span className="text-slate-400 text-xs px-1">…</span>
+                      <button
+                        onClick={() => setPage(lastPage)}
+                        className="w-8 h-8 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      >
+                        {lastPage}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+                    disabled={page >= lastPage}
+                    className="p-1.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40"
+                  >
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <select className="ml-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 text-slate-600">
-                    <option>10 / page</option>
-                    <option>25 / page</option>
-                    <option>50 / page</option>
+
+                  <select
+                    value={perPage}
+                    onChange={(e) => {
+                      setPerPage(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="ml-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 text-slate-600"
+                  >
+                    {[10, 25, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n} / page
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -253,33 +554,45 @@ export default function UsersManagementPage() {
                 <h2 className="font-semibold text-slate-900 mb-4">User Summary</h2>
                 <div className="flex items-center gap-4">
                   <div className="w-28 h-28 shrink-0 relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={pieData} dataKey="value" innerRadius={34} outerRadius={54} paddingAngle={2} stroke="none">
-                          {pieData.map((d) => (
-                            <Cell key={d.name} fill={d.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {pieData.length > 0 && (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            dataKey="value"
+                            innerRadius={34}
+                            outerRadius={54}
+                            paddingAngle={2}
+                            stroke="none"
+                          >
+                            {pieData.map((d) => (
+                              <Cell key={d.name} fill={d.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-base font-bold text-slate-900">2,846</span>
+                      <span className="text-base font-bold text-slate-900">
+                        {totalUsers.toLocaleString()}
+                      </span>
                       <span className="text-[9px] text-slate-400">Total Users</span>
                     </div>
                   </div>
                   <div className="flex-1 space-y-2 text-xs">
-                    {[
-                      { label: "Job Seekers", value: "1,932 (67.9%)", color: "#10b981" },
-                      { label: "Employers", value: "712 (25.0%)", color: "#2563eb" },
-                      { label: "Article Authors", value: "156 (5.5%)", color: "#f59e0b" },
-                      { label: "Administrators", value: "46 (1.6%)", color: "#ef4444" },
-                    ].map((r) => (
-                      <div key={r.label} className="flex items-center justify-between">
+                    {pieData.map((r) => (
+                      <div key={r.name} className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-slate-600">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-                          {r.label}
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: r.color }}
+                          />
+                          {r.name}
                         </span>
-                        <span className="text-slate-500 font-medium">{r.value}</span>
+                        <span className="text-slate-500 font-medium">
+                          {r.value.toLocaleString()} (
+                          {totalUsers > 0 ? ((r.value / totalUsers) * 100).toFixed(1) : "0.0"}%)
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -289,46 +602,48 @@ export default function UsersManagementPage() {
               <div className="bg-white rounded-2xl border border-slate-100 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-slate-900">Filters</h2>
-                  <button className="text-xs text-blue-600 font-medium">Clear All</button>
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    Clear All
+                  </button>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-medium text-slate-500">Role</label>
-                    <select className="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600">
-                      <option>All Roles</option>
-                      <option>Job Seeker</option>
-                      <option>Employer</option>
-                      <option>Article Author</option>
-                      <option>Administrator</option>
-                    </select>
-                  </div>
-                  <div>
                     <label className="text-xs font-medium text-slate-500">Status</label>
-                    <select className="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600">
-                      <option>All Status</option>
-                      <option>Active</option>
-                      <option>Inactive</option>
+                    <select
+                      value={status}
+                      onChange={(e) => {
+                        setStatus(e.target.value);
+                        setPage(1);
+                      }}
+                      className="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600"
+                    >
+                      <option value="">All Status</option>
+                      <option value="active">Active</option>
+                      <option value="suspended">Suspended</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-slate-500">Email Verified</label>
-                    <select className="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600">
-                      <option>All</option>
-                      <option>Verified</option>
-                      <option>Unverified</option>
+                    <select
+                      value={verified}
+                      onChange={(e) => {
+                        setVerified(e.target.value);
+                        setPage(1);
+                      }}
+                      className="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600"
+                    >
+                      <option value="">All</option>
+                      <option value="1">Verified</option>
+                      <option value="0">Unverified</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Joined Date</label>
-                    <button className="mt-1.5 w-full flex items-center justify-between text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-400">
-                      Select date range
-                      <Filter className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+                    <Filter className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+                    Filters apply as you change them.
                   </div>
-                  <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Apply Filters
-                  </button>
                 </div>
               </div>
             </div>
