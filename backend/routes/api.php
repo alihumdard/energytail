@@ -2,11 +2,19 @@
 
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\ArticleCategoryController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\CityController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\CountryController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\IndustryController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\JobCategoryController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\SkillController;
+use App\Http\Controllers\Api\V1\Admin\Taxonomy\TagController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisteredUserController;
 use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
+use App\Http\Controllers\Api\V1\Public\PublicTaxonomyController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -105,4 +113,56 @@ Route::prefix('admin')->name('api.admin.')
         Route::get('/roles/{role}/users', [RoleController::class, 'users'])->name('roles.users');
 
         Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+
+        /*
+        | Taxonomy resources. All six share BaseTaxonomyController, so the
+        | route shape is identical and registered from one loop rather than
+        | repeated six times.
+        */
+        $taxonomies = [
+            'industries' => IndustryController::class,
+            'job-categories' => JobCategoryController::class,
+            'article-categories' => ArticleCategoryController::class,
+            'countries' => CountryController::class,
+            'cities' => CityController::class,
+            'skills' => SkillController::class,
+            'tags' => TagController::class,
+        ];
+
+        foreach ($taxonomies as $slug => $controller) {
+            Route::prefix($slug)->name(str_replace('-', '_', $slug).'.')->group(function () use ($controller) {
+                // Literal segments first, so they are not swallowed by {id}.
+                Route::get('/stats', [$controller, 'stats'])->name('stats');
+                Route::get('/export', [$controller, 'export'])->name('export');
+                Route::post('/reorder', [$controller, 'reorder'])->name('reorder');
+
+                Route::get('/', [$controller, 'index'])->name('index');
+                Route::post('/', [$controller, 'store'])->name('store');
+                Route::get('/{id}', [$controller, 'show'])->whereNumber('id')->name('show');
+                Route::put('/{id}', [$controller, 'update'])->whereNumber('id')->name('update');
+                Route::delete('/{id}', [$controller, 'destroy'])->whereNumber('id')->name('destroy');
+                Route::patch('/{id}/active', [$controller, 'toggleActive'])->whereNumber('id')->name('active');
+            });
+        }
     });
+
+/*
+|--------------------------------------------------------------------------
+| Public Taxonomy
+|--------------------------------------------------------------------------
+|
+| Read-only, unauthenticated, active records only. Feeds search filters and
+| category landing pages on the public site.
+|
+*/
+
+Route::prefix('taxonomies')->name('api.taxonomies.')->group(function () {
+    Route::get('/', [PublicTaxonomyController::class, 'all'])->name('all');
+    Route::get('/countries', [PublicTaxonomyController::class, 'countries'])->name('countries');
+    Route::get('/cities', [PublicTaxonomyController::class, 'cities'])->name('cities');
+    Route::get('/industries', [PublicTaxonomyController::class, 'industries'])->name('industries');
+    Route::get('/job-categories', [PublicTaxonomyController::class, 'jobCategories'])->name('job_categories');
+    Route::get('/article-categories', [PublicTaxonomyController::class, 'articleCategories'])->name('article_categories');
+    Route::get('/skills', [PublicTaxonomyController::class, 'skills'])->name('skills');
+    Route::get('/tags', [PublicTaxonomyController::class, 'tags'])->name('tags');
+});

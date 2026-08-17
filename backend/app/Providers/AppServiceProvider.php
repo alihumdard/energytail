@@ -2,6 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\ArticleCategory;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\Industry;
+use App\Models\JobCategory;
+use App\Models\Skill;
+use App\Models\Tag;
+use App\Observers\TaxonomyCacheObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -17,6 +25,21 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->registerObservers();
+    }
+
+    /**
+     * Taxonomy edits invalidate the public caches, so an admin change shows
+     * on the frontend immediately rather than after the TTL expires.
+     */
+    private function registerObservers(): void
+    {
+        foreach ([
+            Country::class, City::class, Industry::class,
+            JobCategory::class, ArticleCategory::class, Skill::class, Tag::class,
+        ] as $model) {
+            $model::observe(TaxonomyCacheObserver::class);
+        }
     }
 
     private function configureRateLimiting(): void
