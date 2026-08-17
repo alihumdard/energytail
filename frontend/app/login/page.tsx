@@ -1,14 +1,11 @@
-import { Search, Building2, ClipboardList, Mail, Lock, LogIn, ShieldCheck, Headphones, Briefcase } from "lucide-react";
+import { Suspense } from "react";
+import { Search, Building2, ClipboardList, ShieldCheck, Headphones, Briefcase } from "lucide-react";
 import Header from "@/components/Header";
 import { DarkFooter } from "@/components/Shared";
 import Breadcrumb from "@/components/Breadcrumb";
 import AuthLeftPanel from "@/components/auth/AuthLeftPanel";
-import FormField from "@/components/ui/FormField";
-import PrimaryButton from "@/components/ui/PrimaryButton";
-import Divider from "@/components/ui/Divider";
-import SocialAuthButtons from "@/components/ui/SocialAuthButtons";
+import LoginForm from "@/components/auth/LoginForm";
 import InfoBanner from "@/components/ui/InfoBanner";
-import { GoogleIcon, LinkedinIcon, FacebookIcon, AppleIcon } from "@/components/SocialIcons";
 
 const perks = [
   {
@@ -48,60 +45,14 @@ export default function LoginPage() {
             <h2 className="text-2xl font-bold text-slate-900">Login to Your Account</h2>
             <p className="text-sm text-slate-500 mt-1">Enter your credentials to continue</p>
 
-            <form className="mt-6 space-y-5">
-              <FormField
-                label="Email Address"
-                type="email"
-                placeholder="Enter your email address"
-                icon={Mail}
-              />
-
-              <FormField
-                label="Password"
-                type="password"
-                placeholder="Enter your password"
-                icon={Lock}
-                paddingClass="pr-14 py-2.5"
-                trailing={
-                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-medium">
-                    Show
-                  </button>
-                }
-              />
-
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-slate-600">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                  Remember me
-                </label>
-                <a href="/forgot-password" className="text-blue-600 font-medium hover:underline">
-                  Forgot Password?
-                </a>
-              </div>
-
-              <PrimaryButton type="submit" icon={<LogIn className="w-4 h-4" />}>
-                Login
-              </PrimaryButton>
-
-              <Divider label="or continue with" />
-
-              <SocialAuthButtons
-                providers={[
-                  { label: "Google", icon: GoogleIcon },
-                  { label: "LinkedIn", icon: LinkedinIcon, iconClassName: "text-[#0A66C2]" },
-                  { label: "Facebook", icon: FacebookIcon, iconClassName: "text-[#1877F2]" },
-                  { label: "Apple", icon: AppleIcon },
-                ]}
-                columns={2}
-              />
-
-              <p className="text-center text-sm text-slate-500">
-                Don&apos;t have an account?{" "}
-                <a href="/register" className="text-blue-600 font-medium hover:underline">
-                  Register Now
-                </a>
-              </p>
-            </form>
+            {/*
+              The form is a client component so the page around it stays
+              server-rendered. Suspense is required because it reads search
+              params for the post-login redirect.
+            */}
+            <Suspense fallback={<div className="mt-6 h-96 animate-pulse rounded-lg bg-slate-50" />}>
+              <LoginForm />
+            </Suspense>
           </div>
         </div>
 
