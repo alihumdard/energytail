@@ -10,6 +10,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property User $owner
+ * @property string $status
+ */
 class Company extends Model
 {
     use HasFactory, SoftDeletes;

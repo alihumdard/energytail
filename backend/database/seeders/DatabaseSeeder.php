@@ -2,24 +2,29 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Seed the application's database.
+     * Seeds reference data that every environment needs, then demo content
+     * only outside production.
+     *
+     * Roles, settings and taxonomy are production data the client edits — not
+     * throwaway fixtures — so they run everywhere and are safe to re-run.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            RolePermissionSeeder::class,
+            SettingSeeder::class,
+            TaxonomySeeder::class,
         ]);
+
+        // Demo content is destructive to a live site's credibility (fake
+        // companies, fake jobs), so it never runs in production.
+        if (! app()->environment('production')) {
+            $this->call(DemoDataSeeder::class);
+        }
     }
 }
