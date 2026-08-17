@@ -3,10 +3,8 @@ import Header from "@/components/Header";
 import { DarkFooter } from "@/components/Shared";
 import Breadcrumb from "@/components/Breadcrumb";
 import AuthLeftPanel from "@/components/auth/AuthLeftPanel";
-import FormField from "@/components/ui/FormField";
-import PrimaryButton from "@/components/ui/PrimaryButton";
-import Divider from "@/components/ui/Divider";
 import InfoBanner from "@/components/ui/InfoBanner";
+import ForgotPasswordForm from "@/components/auth/ForgotPasswordForm";
 
 const perks = [
   { icon: MailIcon, title: "Secure & Safe", desc: "We use industry-standard security to protect your account." },
@@ -40,37 +38,7 @@ export default function ForgotPasswordPage() {
               Enter your registered email address and we will send you a link to reset your password.
             </p>
 
-            <form className="mt-6 w-full max-w-sm space-y-4 text-left">
-              <FormField
-                label="Email Address"
-                type="email"
-                placeholder="Enter your registered email address"
-                icon={Mail}
-              />
-
-              <PrimaryButton type="submit" icon={<Send className="w-4 h-4" />}>
-                Send Reset Link
-              </PrimaryButton>
-
-              <Divider label="or" />
-
-              <div className="flex items-start gap-3 bg-slate-50 rounded-lg p-3.5">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-sm font-medium text-slate-800">Check your inbox</div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    We&apos;ll send password reset instructions to your email. Don&apos;t forget to check your spam or junk folder.
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-center text-sm text-slate-500">
-                Remember your password?{" "}
-                <a href="/login" className="text-blue-600 font-medium hover:underline">
-                  Login Now
-                </a>
-              </p>
-            </form>
+            <ForgotPasswordForm />
           </div>
         </div>
 

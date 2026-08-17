@@ -1,332 +1,294 @@
 "use client";
 
-import { useState } from "react";
-import Shell from "@/components/admin/Shell";
-import { PageHeader } from "@/components/admin/ShellUI";
-import {
-  Save,
-  Settings as SettingsIcon,
-  Mail,
-  Monitor,
-  UserCog,
-  Bell,
-  CreditCard,
-  Search as SearchIcon,
-  ShieldCheck,
-  Cloud,
-  Share2,
-  Wrench,
-  Upload,
-  X,
-  ChevronDown,
-  Flame,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminTopbar from "@/components/admin/AdminTopbar";
+import { Loader2, Save, Upload } from "lucide-react";
+import { adminSettings } from "@/lib/api/endpoints";
+import { useApiResource } from "@/lib/hooks/useApiResource";
+import type { SettingItem } from "@/lib/api/types";
 
-const settingsNav = [
-  { key: "general", label: "General Settings", desc: "Basic site information and preferences", icon: SettingsIcon },
-  { key: "email", label: "Email Settings", desc: "Configure email and SMTP settings", icon: Mail },
-  { key: "site", label: "Site Settings", desc: "Manage site features and behavior", icon: Monitor },
-  { key: "registration", label: "User & Registration", desc: "Control user registration and verification", icon: UserCog },
-  { key: "notifications", label: "Notification Settings", desc: "Configure system notifications", icon: Bell },
-  { key: "payment", label: "Payment Settings", desc: "Payment gateways and currency options", icon: CreditCard },
-  { key: "seo", label: "SEO Settings", desc: "Meta tags and SEO related options", icon: SearchIcon },
-  { key: "security", label: "Security Settings", desc: "Security, captcha and login settings", icon: ShieldCheck },
-  { key: "storage", label: "Storage Settings", desc: "File storage and media settings", icon: Cloud },
-  { key: "social", label: "Social Media", desc: "Social media links and integration", icon: Share2 },
-  { key: "maintenance", label: "Maintenance Mode", desc: "Enable maintenance mode", icon: Wrench },
-];
+/** Human labels for the tab strip; groups not listed fall back to the key. */
+const GROUP_LABELS: Record<string, string> = {
+  general: "General",
+  site: "Site",
+  users: "Users & Registration",
+  security: "Security",
+  seo: "SEO",
+  jobs: "Jobs",
+  articles: "Articles",
+  storage: "Storage",
+  email: "Email",
+  social: "Social Media",
+  contact: "Contact",
+};
+
+function humanise(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function SettingsPage() {
-  const [active, setActive] = useState("general");
-  const [toggles, setToggles] = useState({
-    registration: true,
-    verification: true,
-    maintenance: false,
-    recaptcha: true,
-  });
+  const { data: response, loading, error, refetch } = useApiResource(
+    () => adminSettings.list(),
+    [],
+  );
+
+  const groups = useMemo(() => response?.data ?? {}, [response]);
+  const groupKeys = useMemo(() => Object.keys(groups), [groups]);
+
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  /** Pending edits, keyed by setting key. Only these are sent on save. */
+  const [edits, setEdits] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  // Falls back to the first group until one is picked, rather than syncing a
+  // default into state from an effect.
+  const activeGroup = selectedGroup ?? groupKeys[0] ?? "";
+
+  const items: SettingItem[] = groups[activeGroup] ?? [];
+
+  function valueOf(item: SettingItem): unknown {
+    return item.key in edits ? edits[item.key] : item.value;
+  }
+
+  function setValue(key: string, value: unknown) {
+    setEdits((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }
+
+  async function save() {
+    const changed = Object.entries(edits).map(([key, value]) => ({ key, value }));
+
+    if (changed.length === 0) return;
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      await adminSettings.save(changed);
+      setEdits({});
+      setSaved(true);
+      refetch();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function upload(key: string, file: File) {
+    setUploading(key);
+    setSaveError(null);
+
+    try {
+      await adminSettings.uploadFile(key, file);
+      refetch();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not upload the file.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  const dirtyCount = Object.keys(edits).length;
 
   return (
-    <Shell>
-      <PageHeader
-        title="System Settings"
-        breadcrumb={[{ label: "Dashboard", href: "/admin/dashboard" }, { label: "Settings" }]}
-        description="Manage and configure global settings for the platform."
-        actions={
-          <button className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-brand-700">
-            <Save size={15} />
-            Save Changes
-          </button>
-        }
-      />
+    <div className="flex min-h-screen bg-slate-50">
+      <AdminSidebar active="settings" />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
-        {/* Settings nav */}
-        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-card lg:sticky lg:top-20 lg:h-fit">
-          <p className="px-2 pb-2 pt-1 text-[13px] font-semibold text-gray-900">
-            Settings
-          </p>
-          <ul className="space-y-1">
-            {settingsNav.map((item) => {
-              const Icon = item.icon;
-              const isActive = active === item.key;
-              return (
-                <li key={item.key}>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <AdminTopbar variant="dark" showThemeToggle />
+
+        <main className="flex-1 p-4 sm:p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                <span className="text-slate-400">Dashboard</span> &gt; Settings
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {saved && <span className="text-sm font-medium text-emerald-600">Saved</span>}
+              {dirtyCount > 0 && (
+                <span className="text-sm text-amber-600">
+                  {dirtyCount} unsaved change{dirtyCount === 1 ? "" : "s"}
+                </span>
+              )}
+              <button
+                onClick={save}
+                disabled={saving || dirtyCount === 0}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg px-4 py-2.5 text-sm"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          {saveError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {saveError}
+            </div>
+          )}
+
+          {loading && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center text-slate-400">
+              Loading settings…
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+              <p className="text-sm text-red-600">{error.message}</p>
+              <button
+                onClick={() => refetch()}
+                className="mt-2 text-sm font-medium text-blue-600 hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && (
+            <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
+              {/* Group tabs */}
+              <nav className="bg-white rounded-2xl border border-slate-100 p-2">
+                {groupKeys.map((g) => (
                   <button
-                    onClick={() => setActive(item.key)}
-                    className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition ${
-                      isActive ? "bg-brand-50" : "hover:bg-gray-50"
+                    key={g}
+                    onClick={() => setSelectedGroup(g)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      activeGroup === g
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <Icon
-                      size={17}
-                      className={`mt-0.5 shrink-0 ${isActive ? "text-brand-600" : "text-gray-400"}`}
-                    />
-                    <span>
-                      <span
-                        className={`block text-[13.5px] font-medium ${isActive ? "text-brand-700" : "text-gray-800"}`}
-                      >
-                        {item.label}
-                      </span>
-                      <span className="block text-[12px] text-gray-400">
-                        {item.desc}
-                      </span>
-                    </span>
+                    {GROUP_LABELS[g] ?? humanise(g)}
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+                ))}
+              </nav>
 
-        {/* Panel */}
-        <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-card sm:p-6">
-          {active === "general" ? (
-            <>
-              <h2 className="text-[16px] font-semibold text-gray-900">
-                General Settings
-              </h2>
-              <p className="mb-6 mt-1 text-[13px] text-gray-500">
-                Update the basic information about your platform.
-              </p>
+              {/* Fields */}
+              <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-5">
+                <h2 className="font-semibold text-slate-900">
+                  {GROUP_LABELS[activeGroup] ?? humanise(activeGroup)}
+                </h2>
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Site Name">
-                  <input className="input" defaultValue="Energy Tail" />
-                </Field>
-                <Field label="Site Tagline">
-                  <input
-                    className="input"
-                    defaultValue="Oil, Gas & Energy Jobs Portal"
-                  />
-                </Field>
+                {items.length === 0 && (
+                  <p className="text-sm text-slate-400">No settings in this group.</p>
+                )}
+
+                {items.map((item) => {
+                  const value = valueOf(item);
+
+                  return (
+                    <div key={item.key} className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-3 items-start">
+                      <div>
+                        <label
+                          htmlFor={item.key}
+                          className="text-sm font-medium text-slate-700"
+                        >
+                          {humanise(item.key)}
+                        </label>
+                        {item.description && (
+                          <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>
+                        )}
+                      </div>
+
+                      {item.type === "boolean" && (
+                        <button
+                          type="button"
+                          onClick={() => setValue(item.key, !value)}
+                          aria-pressed={Boolean(value)}
+                          className={`w-11 h-6 rounded-full relative transition-colors ${
+                            value ? "bg-blue-600" : "bg-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                              value ? "left-[22px]" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                      )}
+
+                      {item.type === "file" && (
+                        <div className="flex items-center gap-3">
+                          {typeof value === "string" && value && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={value}
+                              alt={humanise(item.key)}
+                              className="h-10 w-auto rounded border border-slate-200 bg-slate-50"
+                            />
+                          )}
+                          <label className="flex items-center gap-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3.5 py-2 hover:bg-slate-50 cursor-pointer">
+                            {uploading === item.key ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Upload className="w-4 h-4" />
+                            )}
+                            Upload
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) upload(item.key, file);
+                              }}
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {item.type === "integer" && (
+                        <input
+                          id={item.key}
+                          type="number"
+                          value={String(value ?? "")}
+                          onChange={(e) => setValue(item.key, Number(e.target.value))}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      )}
+
+                      {item.type === "json" && (
+                        <textarea
+                          id={item.key}
+                          rows={2}
+                          value={typeof value === "string" ? value : JSON.stringify(value ?? [])}
+                          onChange={(e) => setValue(item.key, e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      )}
+
+                      {!["boolean", "file", "integer", "json"].includes(item.type) && (
+                        <input
+                          id={item.key}
+                          type="text"
+                          value={String(value ?? "")}
+                          onChange={(e) => setValue(item.key, e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Site Logo">
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
-                    <span className="relative flex items-center gap-2 rounded-md border border-gray-100 px-3 py-2">
-                      <img src="/logo.png" alt="Energy Tail" className="h-8 w-auto object-contain" />
-                      <button className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400">
-                        <X size={10} />
-                      </button>
-                    </span>
-                  </div>
-                  <button className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-600 hover:text-brand-700">
-                    <Upload size={14} />
-                    Upload Logo
-                  </button>
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Recommended size: 250x60px. PNG or SVG
-                  </p>
-                </Field>
-
-                <Field label="Favicon">
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
-                    <span className="relative flex h-10 w-10 items-center justify-center rounded-md bg-brand-600 text-white">
-                      <Flame size={16} fill="white" strokeWidth={0} />
-                      <button className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400">
-                        <X size={10} />
-                      </button>
-                    </span>
-                  </div>
-                  <button className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-600 hover:text-brand-700">
-                    <Upload size={14} />
-                    Upload Favicon
-                  </button>
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Recommended size: 32x32px. ICO, PNG or SVG
-                  </p>
-                </Field>
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Default Language">
-                  <SelectField options={["English", "Urdu", "Arabic"]} />
-                </Field>
-                <Field label="Default Timezone">
-                  <SelectField
-                    options={["(UTC+05:00) Asia/Karachi", "(UTC+00:00) UTC", "(UTC-05:00) America/New York"]}
-                  />
-                </Field>
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Date Format">
-                  <SelectField options={["May 21, 2025", "21/05/2025", "2025-05-21"]} />
-                </Field>
-                <Field label="Time Format">
-                  <SelectField options={["12 Hours (01:30 PM)", "24 Hours (13:30)"]} />
-                </Field>
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Copyright Text">
-                  <input
-                    className="input"
-                    defaultValue="© 2025 Energy Tail. All rights reserved."
-                  />
-                </Field>
-                <Field label="Footer Text">
-                  <input
-                    className="input"
-                    defaultValue="Connecting Talent. Powering Energy."
-                  />
-                </Field>
-              </div>
-
-              <div className="mt-5">
-                <Field label="Site Description">
-                  <div className="relative">
-                    <textarea
-                      className="input min-h-[90px] resize-none"
-                      maxLength={255}
-                      defaultValue="Energy Tail is a specialized platform for Oil, Gas and Energy industry jobs, connecting top talent with leading companies worldwide."
-                    />
-                    <span className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-gray-400">
-                      126/255
-                    </span>
-                  </div>
-                </Field>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-4 border-t border-gray-100 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-                <ToggleRow
-                  label="Enable Registration"
-                  desc="Allow new users to register"
-                  checked={toggles.registration}
-                  onChange={() =>
-                    setToggles((t) => ({ ...t, registration: !t.registration }))
-                  }
-                />
-                <ToggleRow
-                  label="Email Verification"
-                  desc="Require email verification"
-                  checked={toggles.verification}
-                  onChange={() =>
-                    setToggles((t) => ({ ...t, verification: !t.verification }))
-                  }
-                />
-                <ToggleRow
-                  label="Maintenance Mode"
-                  desc="Site under maintenance"
-                  checked={toggles.maintenance}
-                  onChange={() =>
-                    setToggles((t) => ({ ...t, maintenance: !t.maintenance }))
-                  }
-                />
-                <ToggleRow
-                  label="Google reCAPTCHA"
-                  desc="Enable reCAPTCHA"
-                  checked={toggles.recaptcha}
-                  onChange={() =>
-                    setToggles((t) => ({ ...t, recaptcha: !t.recaptcha }))
-                  }
-                />
-              </div>
-            </>
-          ) : (
-            <EmptyPanel
-              label={settingsNav.find((s) => s.key === active)?.label ?? ""}
-            />
+            </div>
           )}
-        </div>
+        </main>
       </div>
-    </Shell>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-gray-600">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function SelectField({ options }: { options: string[] }) {
-  return (
-    <div className="relative">
-      <select className="input appearance-none pr-8">
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-      <ChevronDown
-        size={14}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-      />
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  desc,
-  checked,
-  onChange,
-}: {
-  label: string;
-  desc: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 p-3.5">
-      <span>
-        <span className="block text-[13.5px] font-medium text-gray-900">
-          {label}
-        </span>
-        <span className="block text-[12px] text-gray-400">{desc}</span>
-      </span>
-      <button
-        onClick={onChange}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          checked ? "bg-brand-600" : "bg-gray-200"
-        }`}
-        aria-pressed={checked}
-      >
-        <span
-          className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0.5"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
-
-function EmptyPanel({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 py-16 text-center">
-      <SettingsIcon size={28} className="mb-3 text-gray-300" />
-      <p className="text-[14px] font-medium text-gray-700">{label}</p>
-      <p className="mt-1 max-w-xs text-[13px] text-gray-400">
-        This section is ready to be configured. Switch back to General
-        Settings to see the full example layout.
-      </p>
     </div>
   );
 }

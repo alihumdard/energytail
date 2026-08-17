@@ -2,7 +2,8 @@ import { Mail, CheckCircle2, Clock, RefreshCw, Pencil, HelpCircle, Send, ShieldC
 import Header from "@/components/Header";
 import { DarkFooter } from "@/components/Shared";
 import Breadcrumb from "@/components/Breadcrumb";
-import PrimaryButton from "@/components/ui/PrimaryButton";
+import { Suspense } from "react";
+import VerifyEmailPanel from "@/components/auth/VerifyEmailPanel";
 import InfoBanner from "@/components/ui/InfoBanner";
 
 const helpItems = [
@@ -38,17 +39,10 @@ export default function VerifyEmailPage() {
             We&apos;ve sent a verification link to your email address. Please check your inbox and click the link to verify your account.
           </p>
 
-          <div className="mt-6 w-full max-w-md flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-3.5">
-            <div className="flex items-center gap-2.5 text-left">
-              <Mail className="w-4 h-4 text-slate-500 shrink-0" />
-              <div>
-                <div className="text-xs text-slate-500">Email sent to</div>
-                <div className="text-sm font-semibold text-slate-800">john.anderson@example.com</div>
-              </div>
-            </div>
-            <a href="/register" className="text-sm text-blue-600 font-medium hover:underline shrink-0">
-              Change Email
-            </a>
+          <div className="w-full max-w-md text-left">
+            <Suspense fallback={<div className="h-24 animate-pulse rounded-xl bg-slate-50" />}>
+              <VerifyEmailPanel />
+            </Suspense>
           </div>
 
           <div className="w-full flex items-center gap-3 text-xs text-slate-400 my-8">
@@ -69,9 +63,6 @@ export default function VerifyEmailPage() {
             ))}
           </div>
 
-          <PrimaryButton type="button" className="mt-8 max-w-md" icon={<Send className="w-4 h-4" />}>
-            Resend Verification Email
-          </PrimaryButton>
 
           <p className="text-xs text-slate-400 mt-4 max-w-md">
             The verification link will expire in 24 hours for security reasons.

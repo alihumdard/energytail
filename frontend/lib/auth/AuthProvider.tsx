@@ -47,11 +47,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Restores the session on first load: the cookie survives a refresh, but
-  // React state does not.
+  // Restores the session on first load: the cookie survives a page refresh,
+  // but React state does not.
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
-  }, [refresh]);
+    let cancelled = false;
+
+    async function restore() {
+      try {
+        const { data } = await authApi.me();
+        if (!cancelled) setUser(data);
+      } catch (error) {
+        // A 401 here is the ordinary signed-out case, not a failure worth
+        // surfacing. Anything else is genuinely unexpected.
+        if (!(error instanceof ApiError && error.isUnauthenticated)) {
+          console.error("Failed to load the current user", error);
+        }
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    restore();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string, remember = false) => {

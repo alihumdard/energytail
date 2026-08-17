@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import {
@@ -36,8 +36,11 @@ export default function RolesPermissionsPage() {
   const [activeRoleId, setActiveRoleId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("Permissions");
 
-  /** Working copy of the grid; only written back on save. */
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  /**
+   * Local edits to the grid, or null when nothing has been touched since the
+   * role was loaded. Null means "show exactly what the server returned".
+   */
+  const [edits, setEdits] = useState<Set<string> | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -53,63 +56,77 @@ export default function RolesPermissionsPage() {
   const roles = useMemo(() => rolesResponse?.data ?? [], [rolesResponse]);
   const matrix = matrixResponse?.data;
 
-  // Select the first role once the list arrives.
-  useEffect(() => {
-    if (activeRoleId === null && roles.length > 0) {
-      setActiveRoleId(roles[0].id);
-    }
-  }, [roles, activeRoleId]);
+  // Falls back to the first role until one is chosen, rather than syncing a
+  // default into state from an effect.
+  const effectiveRoleId = activeRoleId ?? roles[0]?.id ?? null;
+  const activeRole: Role | undefined = roles.find((r) => r.id === effectiveRoleId);
 
-  const activeRole: Role | undefined = roles.find((r) => r.id === activeRoleId);
-
-  // Loads the selected role's permissions into the working copy.
   const { data: roleDetail, loading: detailLoading } = useApiResource(
-    () => (activeRoleId ? adminRoles.get(activeRoleId) : Promise.resolve(null)),
-    [activeRoleId],
+    () => (effectiveRoleId ? adminRoles.get(effectiveRoleId) : Promise.resolve(null)),
+    [effectiveRoleId],
   );
 
-  useEffect(() => {
-    if (roleDetail?.data?.permissions) {
-      setSelected(new Set(roleDetail.data.permissions));
-      setSaved(false);
-      setSaveError(null);
-    }
-  }, [roleDetail]);
+  /*
+   * The grid is edited locally and only written back on save, so the server's
+   * permissions seed a working copy. `edits` holds that copy; while it is
+   * null the server values are shown directly, which avoids copying them in
+   * from an effect.
+   */
+  const serverPermissions = useMemo(
+    () => new Set(roleDetail?.data?.permissions ?? []),
+    [roleDetail],
+  );
+
+  const selected = edits ?? serverPermissions;
 
   const { data: roleUsers } = useApiResource(
     () =>
-      activeRoleId && activeTab === "Users"
-        ? adminRoles.users(activeRoleId, { per_page: 25 })
+      effectiveRoleId && activeTab === "Users"
+        ? adminRoles.users(effectiveRoleId, { per_page: 25 })
         : Promise.resolve(null),
-    [activeRoleId, activeTab],
+    [effectiveRoleId, activeTab],
   );
 
   // The administrator role is deliberately locked: stripping it would leave
   // nobody able to administer the platform, and the API refuses the write.
   const locked = activeRole?.name === "administrator";
 
+  /** Switching role discards any unsaved edits to the previous one. */
+  function selectRole(id: number) {
+    setActiveRoleId(id);
+    setEdits(null);
+    setSaved(false);
+    setSaveError(null);
+  }
+
   function toggle(permission: string) {
     if (locked) return;
 
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(permission) ? next.delete(permission) : next.add(permission);
+    setEdits((prev) => {
+      const next = new Set(prev ?? serverPermissions);
+      if (next.has(permission)) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
       return next;
     });
     setSaved(false);
   }
 
   async function save() {
-    if (!activeRoleId) return;
+    if (!effectiveRoleId) return;
 
     setSaving(true);
     setSaveError(null);
 
     try {
       // One request for the whole grid, matching the single Save button.
-      await adminRoles.syncPermissions(activeRoleId, [...selected]);
+      await adminRoles.syncPermissions(effectiveRoleId, [...selected]);
+      // Drop the working copy so the refreshed server values take over.
+      setEdits(null);
       setSaved(true);
-      await refetchRoles();
+      refetchRoles();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Could not save permissions.");
     } finally {
@@ -162,14 +179,14 @@ export default function RolesPermissionsPage() {
 
               <div className="space-y-1.5">
                 {roles.map((r) => {
-                  const isActive = r.id === activeRoleId;
+                  const isActive = r.id === effectiveRoleId;
                   const visual = ROLE_VISUALS[r.name] ?? FALLBACK_VISUAL;
                   const Icon = visual.icon;
 
                   return (
                     <button
                       key={r.id}
-                      onClick={() => setActiveRoleId(r.id)}
+                      onClick={() => selectRole(r.id)}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${
                         isActive
                           ? "bg-blue-50 border border-blue-100"

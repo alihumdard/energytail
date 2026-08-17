@@ -221,7 +221,8 @@ export default function UsersManagementPage() {
 
     try {
       await adminUsers.setStatus(user.id, next, reason);
-      await Promise.all([refetch(), refetchStats()]);
+      refetch();
+      refetchStats();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Could not update the user.");
     } finally {

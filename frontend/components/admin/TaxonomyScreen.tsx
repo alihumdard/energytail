@@ -107,7 +107,8 @@ export default function TaxonomyScreen({
     setBusyId(item.id);
     try {
       await api.toggleActive(item.id);
-      await Promise.all([refetch(), refetchStats()]);
+      refetch();
+      refetchStats();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Could not update the record.");
     } finally {
@@ -121,7 +122,8 @@ export default function TaxonomyScreen({
     setBusyId(item.id);
     try {
       await api.remove(item.id);
-      await Promise.all([refetch(), refetchStats()]);
+      refetch();
+      refetchStats();
     } catch (err) {
       // The API refuses to delete records still in use and explains why —
       // surfacing its message is more useful than a generic failure.

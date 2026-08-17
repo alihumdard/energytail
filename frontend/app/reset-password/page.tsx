@@ -1,10 +1,9 @@
+import { Suspense } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
 import HeaderAlt from "@/components/HeaderAlt";
 import { DarkFooter } from "@/components/Shared";
-import FormField from "@/components/ui/FormField";
-import PrimaryButton from "@/components/ui/PrimaryButton";
-import Divider from "@/components/ui/Divider";
 import { GoogleIcon } from "@/components/SocialIcons";
+import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
 
 const steps = [
   { n: 1, label: "Request" },
@@ -76,36 +75,9 @@ export default function ResetPasswordPage() {
               <h2 className="text-2xl font-bold text-slate-900">Enter your email address</h2>
               <p className="text-sm text-slate-500 mt-2">We&apos;ll send you a password reset link to your email.</p>
 
-              <form className="mt-6 space-y-4">
-                <FormField
-                  label="Email Address"
-                  type="email"
-                  placeholder="Enter your registered email"
-                  icon={Mail}
-                  paddingClass="pr-3 py-3"
-                />
-
-                <PrimaryButton type="submit" icon={<ArrowRight className="w-4 h-4" />} iconPosition="right">
-                  Send Reset Link
-                </PrimaryButton>
-
-                <Divider label="OR" />
-
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-center gap-2 border border-slate-200 rounded-lg py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  <GoogleIcon className="w-4 h-4" />
-                  Reset with Google
-                </button>
-
-                <p className="text-center text-sm text-slate-500">
-                  Remember your password?{" "}
-                  <a href="/login" className="text-blue-600 font-medium hover:underline">
-                    Back to Login
-                  </a>
-                </p>
-              </form>
+              <Suspense fallback={<div className="mt-6 h-72 animate-pulse rounded-lg bg-slate-50" />}>
+                <ResetPasswordForm />
+              </Suspense>
             </div>
           </div>
         </div>
