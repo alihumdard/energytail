@@ -97,8 +97,15 @@ class ApiExceptionRenderer
     private function slugForStatus(int $status): string
     {
         return match ($status) {
+            // Laravel converts AuthorizationException into a plain
+            // HttpException before custom renderers run, so 403 has to be
+            // mapped here as well as in classify().
+            401 => 'unauthenticated',
+            403 => 'forbidden',
+            404 => 'not_found',
             405 => 'method_not_allowed',
             409 => 'conflict',
+            422 => 'validation_failed',
             429 => 'too_many_requests',
             503 => 'service_unavailable',
             default => 'http_error',

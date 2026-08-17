@@ -53,6 +53,18 @@ class User extends Authenticatable implements MustVerifyEmail
      * and by middleware rather than deleting the row, so an admin can
      * reverse the decision and the audit trail stays intact.
      */
+    /**
+     * Roles and permissions are stored against the 'web' guard.
+     *
+     * Requests authenticate through auth:sanctum, so without this the check
+     * would run against the 'sanctum' guard and find no permissions at all —
+     * Spatie keeps a separate set per guard.
+     */
+    public function guardName(): string
+    {
+        return 'web';
+    }
+
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';

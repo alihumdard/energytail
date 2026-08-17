@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\PermissionController;
+use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
@@ -72,3 +74,35 @@ Route::prefix('auth')->name('api.auth.')->group(function () {
             ->name('email.resend');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Admin
+|--------------------------------------------------------------------------
+|
+| Every route requires an authenticated, non-suspended account. Finer-grained
+| checks live in policies rather than here, so a permission change takes
+| effect without a routing change.
+|
+*/
+
+Route::prefix('admin')->name('api.admin.')
+    ->middleware(['auth:sanctum', 'active'])
+    ->group(function () {
+
+        // Matrix definition first: a literal segment would otherwise be
+        // captured by the {role} parameter on the resource routes below.
+        Route::get('/roles/matrix', [RoleController::class, 'matrix'])->name('roles.matrix');
+
+        Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+        Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+
+        Route::put('/roles/{role}/permissions', [RoleController::class, 'syncPermissions'])
+            ->name('roles.permissions.sync');
+        Route::get('/roles/{role}/users', [RoleController::class, 'users'])->name('roles.users');
+
+        Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+    });

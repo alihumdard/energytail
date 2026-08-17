@@ -42,6 +42,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Declared explicitly so it carries a 'provider'. Spatie resolves the
+        // user model for a role through the active guard's provider, and
+        // during an auth:sanctum request the guard is 'sanctum' — without a
+        // provider here that lookup returns null and Role::users() breaks.
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
     ],
 
     /*
