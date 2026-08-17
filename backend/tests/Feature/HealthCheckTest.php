@@ -10,7 +10,7 @@ it('reports healthy on the versioned api prefix', function () {
 });
 
 it('rejects unauthenticated access to protected routes with the standard error shape', function () {
-    getJson('/api/v1/user')
+    getJson('/api/v1/auth/me')
         ->assertUnauthorized()
         ->assertJsonPath('code', 'unauthenticated')
         ->assertJsonStructure(['message', 'code']);

@@ -35,4 +35,30 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Social Sign-In (Phase 1)
+    |--------------------------------------------------------------------------
+    |
+    | Both providers ship with Socialite — no community package required.
+    |
+    | LinkedIn uses the 'linkedin-openid' driver. The legacy 'linkedin' OAuth2
+    | scopes (r_liteprofile, r_emailaddress) were retired by LinkedIn; the
+    | current product is "Sign In with LinkedIn using OpenID Connect", which
+    | requires app review before issuing production credentials.
+    |
+    */
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/api/v1/auth/social/google/callback'),
+    ],
+
+    'linkedin-openid' => [
+        'client_id' => env('LINKEDIN_CLIENT_ID'),
+        'client_secret' => env('LINKEDIN_CLIENT_SECRET'),
+        'redirect' => env('LINKEDIN_REDIRECT_URI', '/api/v1/auth/social/linkedin/callback'),
+    ],
+
 ];

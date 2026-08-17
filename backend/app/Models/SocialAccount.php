@@ -6,6 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property User $user Never null — the foreign key cascades on delete.
+ * @property string|null $access_token
+ * @property string|null $refresh_token
+ */
 class SocialAccount extends Model
 {
     use HasFactory;

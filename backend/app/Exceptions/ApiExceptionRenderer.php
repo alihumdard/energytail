@@ -5,6 +5,7 @@ namespace App\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +30,14 @@ class ApiExceptionRenderer
     public function __invoke(Throwable $e, Request $request): ?JsonResponse
     {
         if (! $request->is('api/*') && ! $request->expectsJson()) {
+            return null;
+        }
+
+        // Middleware and validators signal an already-built response by
+        // throwing this. Returning null hands it back to Laravel, which sends
+        // the response as intended — the rate limiter's 429 reaches the client
+        // this way instead of being reclassified as a 500.
+        if ($e instanceof HttpResponseException) {
             return null;
         }
 
