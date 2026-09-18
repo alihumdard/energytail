@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { auth as authApi } from "@/lib/api/endpoints";
+import { getCaptchaToken } from "@/lib/auth/captcha";
 import FormField from "@/components/ui/FormField";
+import PasswordStrength, { isPasswordValid } from "@/components/ui/PasswordStrength";
 import PrimaryButton from "@/components/ui/PrimaryButton";
 
 export default function ResetPasswordForm() {
@@ -33,6 +35,7 @@ export default function ResetPasswordForm() {
         email,
         password,
         password_confirmation: confirmation,
+        captcha_token: await getCaptchaToken("reset_password"),
       });
 
       router.push("/login?reset=1");
@@ -70,18 +73,35 @@ export default function ResetPasswordForm() {
     );
   }
 
+  const expiredToken = error?.code === "invalid_reset_token";
+
+  /*
+   * The expired-token case has its own panel below, and the password field
+   * shows its own errors, so the banner covers only what is left. Testing
+   * "not a validation error" instead rendered two banners at once for an
+   * expired link, and swallowed a 422 raised against any other field.
+   */
+  const generalError =
+    error && !expiredToken && !error.fieldError("password") && !error.isRateLimited
+      ? error.message
+      : null;
+
+  const passwordsMatch = confirmation === "" || password === confirmation;
+  const canSubmit =
+    !submitting && isPasswordValid(password) && password === confirmation;
+
   return (
     <form className="mt-6 space-y-5" onSubmit={handleSubmit} noValidate>
-      {error && !error.isValidation && (
+      {generalError && (
         <div
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
-          {error.message}
+          {generalError}
         </div>
       )}
 
-      {error?.code === "invalid_reset_token" && (
+      {expiredToken && (
         <div
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -132,17 +152,19 @@ export default function ResetPasswordForm() {
         icon={Lock}
         value={confirmation}
         onChange={(e) => setConfirmation(e.target.value)}
+        error={passwordsMatch ? undefined : "Both passwords must match."}
       />
 
-      <p className="text-xs text-slate-400 -mt-3">
-        At least 8 characters with uppercase, lowercase, number &amp; special character.
-      </p>
+      {/* Same live checklist as registration, in place of static rule text. */}
+      <div className="-mt-3">
+        <PasswordStrength value={password} />
+      </div>
 
       <PrimaryButton
         type="submit"
-        disabled={submitting}
+        disabled={!canSubmit}
         icon={<KeyRound className="w-4 h-4" />}
-        className={submitting ? "opacity-70 cursor-not-allowed" : ""}
+        className={!canSubmit ? "opacity-70 cursor-not-allowed" : ""}
       >
         {submitting ? "Updating…" : "Reset Password"}
       </PrimaryButton>

@@ -96,6 +96,21 @@ class RoleService
      */
     public function update(Role $role, array $data): Role
     {
+        /*
+         * System roles keep the labels they were seeded with.
+         *
+         * The label is how a role is identified everywhere in the UI, and
+         * nothing stops it being set to another role's name: renaming
+         * Administrator to "Employer" left a list with two entries that read
+         * the same and no way to tell which one granted full access. Their
+         * descriptions stay editable, which is the part that carries no risk.
+         */
+        if ($role->is_system && isset($data['label']) && $data['label'] !== $role->label) {
+            throw ValidationException::withMessages([
+                'label' => ['System roles cannot be renamed.'],
+            ]);
+        }
+
         $role->update(array_filter([
             'label' => $data['label'] ?? null,
             'description' => $data['description'] ?? null,

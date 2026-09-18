@@ -21,6 +21,12 @@ use Illuminate\Support\Facades\Cache;
  * Only active records are returned — deactivating an item in the admin panel
  * removes it from the frontend without deleting anything. Responses are
  * cached because this data changes rarely but is read on nearly every page.
+ *
+ * Every cached value is a plain array, never a model instance. Caching models
+ * serialised their whole object graph, and reading it back in a process that
+ * could not resolve the class produced __PHP_Incomplete_Class — which reached
+ * the frontend as filter dropdowns full of nonsense rather than as an error.
+ * Arrays cannot fail that way, and are smaller besides.
  */
 class PublicTaxonomyController extends Controller
 {
@@ -31,7 +37,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.countries', now()->addMinutes(self::CACHE_MINUTES),
             fn () => Country::active()->ordered()
                 ->get(['id', 'name', 'slug', 'code', 'flag_emoji', 'region'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -49,7 +55,7 @@ class PublicTaxonomyController extends Controller
             fn () => City::active()->ordered()
                 ->when($countryId > 0, fn ($q) => $q->where('country_id', $countryId))
                 ->get(['id', 'country_id', 'name', 'slug', 'region'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -60,7 +66,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.industries', now()->addMinutes(self::CACHE_MINUTES),
             fn () => Industry::active()->ordered()
                 ->get(['id', 'name', 'slug', 'emoji', 'color', 'description'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -71,7 +77,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.job_categories', now()->addMinutes(self::CACHE_MINUTES),
             fn () => JobCategory::active()->ordered()
                 ->get(['id', 'parent_id', 'name', 'slug', 'emoji', 'color', 'description', 'is_featured'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -82,7 +88,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.article_categories', now()->addMinutes(self::CACHE_MINUTES),
             fn () => ArticleCategory::active()->ordered()
                 ->get(['id', 'parent_id', 'name', 'slug', 'color'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -107,7 +113,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.skills', now()->addMinutes(self::CACHE_MINUTES),
             fn () => Skill::active()->ordered()
                 ->get(['id', 'name', 'slug', 'category', 'demand_level'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);
@@ -118,7 +124,7 @@ class PublicTaxonomyController extends Controller
         $data = Cache::remember('public.tags', now()->addMinutes(self::CACHE_MINUTES),
             fn () => Tag::active()->popular()
                 ->get(['id', 'name', 'slug', 'color', 'usage_count'])
-                ->all()
+                ->toArray()
         );
 
         return response()->json(['data' => $data]);

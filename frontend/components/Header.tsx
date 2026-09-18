@@ -2,26 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, X, Send } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Logo from "./Logo";
-import TopBar from "./TopBar";
-
-const navItems = [
-  { label: "Jobs", href: "/jobs" },
-  { label: "Companies", href: "/companies" },
-  { label: "Categories", href: "/admin/job-categories" },
-  { label: "Articles", href: "/articles" },
-  { label: "Locations", href: "/admin/countries" },
-  { label: "Packages", href: "/register" },
-  { label: "About Us", href: "/" },
-];
+import UtilityBar from "./UtilityBar";
+import HeaderAuthControls from "./HeaderAuthControls";
+import { publicNavItems as navItems } from "@/lib/nav/useHeaderNav";
 
 export default function Header() {
   const [open, setOpen] = useState(false);
 
   return (
     <header>
-      <TopBar />
+      <UtilityBar />
       <div className="border-b border-slate-100">
         <div className="mx-auto max-w-7xl px-4 py-3.5 flex items-center justify-between gap-6">
           <Link href="/">
@@ -35,25 +27,7 @@ export default function Header() {
             ))}
           </nav>
           <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-slate-700 border border-slate-200 rounded-md px-4 py-2 hover:border-blue-400 hover:text-blue-600"
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="hidden sm:inline-block text-sm font-medium text-blue-600 border border-blue-200 rounded-md px-4 py-2 hover:bg-blue-50"
-            >
-              Register
-            </Link>
-            <Link
-              href="/employer-dashboard"
-              className="hidden md:flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 rounded-md px-4 py-2 hover:bg-blue-700"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Post a Job
-            </Link>
+            <HeaderAuthControls variant="outlined" />
             <button
               onClick={() => setOpen(!open)}
               className="lg:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-md"
@@ -78,21 +52,13 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
-            <Link
-              href="/register"
-              onClick={() => setOpen(false)}
-              className="py-3 border-b border-slate-50 text-sm font-medium text-blue-600"
-            >
-              Register
-            </Link>
-            <Link
-              href="/employer-dashboard"
-              onClick={() => setOpen(false)}
-              className="mt-3 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-blue-600 rounded-md px-4 py-2.5"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Post a Job
-            </Link>
+            <div className="mt-3 flex flex-col gap-2">
+              <HeaderAuthControls
+                variant="outlined"
+                layout="stack"
+                onNavigate={() => setOpen(false)}
+              />
+            </div>
           </nav>
         </div>
       )}

@@ -23,9 +23,6 @@ const PROTECTED_PREFIXES = [
   "/author-dashboard",
 ];
 
-/** Pointless once signed in — redirect to the right dashboard instead. */
-const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"];
-
 /**
  * Laravel's session cookie. Derived from APP_NAME via Str::slug, which uses
  * hyphens — "Energy Tail" becomes "energy-tail-session". Renaming the app in
@@ -34,11 +31,14 @@ const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"];
 const SESSION_COOKIE = "energy-tail-session";
 
 function hasSession(request: NextRequest): boolean {
+  /*
+   * Deliberately does NOT look at XSRF-TOKEN. Sanctum hands that cookie to
+   * guests too — the login form fetches /sanctum/csrf-cookie before it can
+   * post credentials — so treating it as proof of a session bounced visitors
+   * off the login page before they had signed in.
+   */
   return (
-    request.cookies.has(SESSION_COOKIE) ||
-    request.cookies.has("laravel_session") ||
-    // Present whenever a Sanctum session has been established.
-    request.cookies.has("XSRF-TOKEN")
+    request.cookies.has(SESSION_COOKIE) || request.cookies.has("laravel_session")
   );
 }
 
@@ -57,10 +57,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  if (signedIn && GUEST_ONLY_PATHS.includes(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
+  /*
+   * Signed-in users are deliberately NOT bounced off /login and /register
+   * here. A cookie cannot tell the two apart: Laravel starts a session for
+   * every visitor, so an anonymous browser holds energy-tail-session and
+   * XSRF-TOKEN too, and redirecting on their presence locked guests out of
+   * the login page entirely. The pages themselves redirect once the client
+   * has asked the API who the user is.
+   */
   return NextResponse.next();
 }
 

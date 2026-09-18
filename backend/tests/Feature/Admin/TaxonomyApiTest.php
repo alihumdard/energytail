@@ -309,3 +309,58 @@ it('refuses export without the export permission', function () {
 
     actingAs($employer)->get('/api/v1/admin/countries/export')->assertForbidden();
 });
+
+// ------------------------------------------------------------------ counts
+
+/*
+ * Regression: the base controller never applied withCount, so every
+ * "<relation>_count" transform() reads came back null. The screens render
+ * these as usage figures, and the delete guard refuses on the same numbers —
+ * so the table claimed a country was unused while the API refused to delete it.
+ */
+it('returns usage counts on the taxonomy list', function () {
+    $country = Country::query()->where('code', 'US')->firstOrFail();
+
+    $payload = actingAs($this->admin)
+        ->getJson('/api/v1/admin/countries?per_page=100')
+        ->assertOk()
+        ->json('data');
+
+    $row = collect($payload)->firstWhere('id', $country->id);
+
+    expect($row['cities_count'])->toBeInt()
+        ->and($row['cities_count'])->toBe($country->cities()->count());
+});
+
+it('returns usage counts after a write, not just on the list', function () {
+    $created = actingAs($this->admin)
+        ->postJson('/api/v1/admin/countries', [
+            'name' => 'Testland',
+            'code' => 'QQ',
+            'is_active' => true,
+        ])
+        ->assertCreated()
+        ->json('data');
+
+    // A brand-new country has nothing attached, so this must be 0 rather than
+    // null — the row still has to render a figure.
+    expect($created['cities_count'])->toBe(0);
+
+    $updated = actingAs($this->admin)
+        ->putJson("/api/v1/admin/countries/{$created['id']}", [
+            'name' => 'Testland Renamed',
+            'code' => 'QQ',
+            'is_active' => true,
+        ])
+        ->assertOk()
+        ->json('data');
+
+    expect($updated['cities_count'])->toBe(0);
+
+    $toggled = actingAs($this->admin)
+        ->patchJson("/api/v1/admin/countries/{$created['id']}/active")
+        ->assertOk()
+        ->json('data');
+
+    expect($toggled['cities_count'])->toBe(0);
+});

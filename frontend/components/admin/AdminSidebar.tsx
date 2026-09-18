@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { subscribe, getOpen, setOpen } from "./drawer-store";
 import {
   Home,
@@ -10,6 +11,7 @@ import {
   Building2,
   Briefcase,
   FileText,
+  MessageSquare,
   LayoutGrid,
   Factory,
   Globe,
@@ -20,9 +22,9 @@ import {
   Settings,
   ClipboardList,
   ExternalLink,
-  Trash2,
   Activity,
 } from "lucide-react";
+import UserMenu from "./UserMenu";
 
 export type AdminNavKey =
   | "dashboard"
@@ -30,6 +32,7 @@ export type AdminNavKey =
   | "companies"
   | "jobs"
   | "articles"
+  | "comments"
   | "categories"
   | "industries"
   | "countries"
@@ -40,27 +43,134 @@ export type AdminNavKey =
   | "settings"
   | "audit-logs";
 
-const mainNav: { key: AdminNavKey; label: string; href: string; icon: typeof Home }[] = [
-  { key: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: Home },
-  { key: "users", label: "Users", href: "/admin/users", icon: UsersIcon },
-  { key: "companies", label: "Companies", href: "/admin/companies", icon: Building2 },
-  { key: "jobs", label: "Jobs", href: "/admin/jobs", icon: Briefcase },
-  { key: "articles", label: "Articles", href: "/admin/articles", icon: FileText },
+/**
+ * A sidebar entry, and the permission that earns it.
+ *
+ * The permission is the whole point: the nav is built from what the signed-in
+ * account can actually do, so a role without `users.view` never sees a Users
+ * link that would 403 the moment they clicked it. The API is still the
+ * boundary — this only stops the menu promising something it cannot deliver.
+ */
+type NavItem = {
+  key: AdminNavKey;
+  label: string;
+  href: string;
+  icon: typeof Home;
+  permission: string;
+};
+
+const mainNav: NavItem[] = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    href: "/admin/dashboard",
+    icon: Home,
+    permission: "dashboard.view",
+  },
+  {
+    key: "users",
+    label: "Users",
+    href: "/admin/users",
+    icon: UsersIcon,
+    permission: "users.view",
+  },
+  {
+    key: "companies",
+    label: "Companies",
+    href: "/admin/companies",
+    icon: Building2,
+    permission: "companies.approve",
+  },
+  {
+    key: "jobs",
+    label: "Jobs",
+    href: "/admin/jobs",
+    icon: Briefcase,
+    permission: "jobs.approve",
+  },
+  {
+    key: "articles",
+    label: "Articles",
+    href: "/admin/articles",
+    icon: FileText,
+    permission: "articles.approve",
+  },
+  {
+    key: "comments",
+    label: "Comments",
+    href: "/admin/comments",
+    icon: MessageSquare,
+    permission: "comments.approve",
+  },
 ];
 
-const managementNav: { key: AdminNavKey; label: string; href: string; icon: typeof Home }[] = [
-  { key: "categories", label: "Job Categories", href: "/admin/job-categories", icon: LayoutGrid },
-  { key: "industries", label: "Industries", href: "/admin/industries", icon: Factory },
-  { key: "countries", label: "Countries", href: "/admin/countries", icon: Globe },
-  { key: "cities", label: "Cities", href: "/admin/cities", icon: MapPin },
-  { key: "skills", label: "Skills", href: "/admin/skills", icon: Wrench },
-  { key: "tags", label: "Tags", href: "/admin/tags", icon: Tag },
+const managementNav: NavItem[] = [
+  {
+    key: "categories",
+    label: "Job Categories",
+    href: "/admin/job-categories",
+    icon: LayoutGrid,
+    permission: "taxonomy.view",
+  },
+  {
+    key: "industries",
+    label: "Industries",
+    href: "/admin/industries",
+    icon: Factory,
+    permission: "taxonomy.view",
+  },
+  {
+    key: "countries",
+    label: "Countries",
+    href: "/admin/countries",
+    icon: Globe,
+    permission: "taxonomy.view",
+  },
+  {
+    key: "cities",
+    label: "Cities",
+    href: "/admin/cities",
+    icon: MapPin,
+    permission: "taxonomy.view",
+  },
+  {
+    key: "skills",
+    label: "Skills",
+    href: "/admin/skills",
+    icon: Wrench,
+    permission: "taxonomy.view",
+  },
+  {
+    key: "tags",
+    label: "Tags",
+    href: "/admin/tags",
+    icon: Tag,
+    permission: "taxonomy.view",
+  },
 ];
 
-const systemNav: { key: AdminNavKey; label: string; href: string; icon: typeof Home }[] = [
-  { key: "roles", label: "Roles & Permissions", href: "/admin/roles-permissions", icon: Shield },
-  { key: "settings", label: "Settings", href: "/admin/settings", icon: Settings },
-  { key: "audit-logs", label: "Audit Logs", href: "/admin/audit-logs", icon: ClipboardList },
+const systemNav: NavItem[] = [
+  {
+    key: "roles",
+    label: "Roles & Permissions",
+    href: "/admin/roles-permissions",
+    icon: Shield,
+    permission: "roles.view",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    href: "/admin/settings",
+    icon: Settings,
+    permission: "settings.view",
+  },
+  {
+    key: "audit-logs",
+    label: "Audit Logs",
+    href: "/admin/audit-logs",
+    icon: ClipboardList,
+    permission: "audit_logs.view",
+  },
 ];
 
 function NavSection({
@@ -69,12 +179,18 @@ function NavSection({
   active,
 }: {
   title: string;
-  items: typeof mainNav;
+  items: NavItem[];
   active: AdminNavKey;
 }) {
+  // A section with nothing the user may open renders nothing at all —
+  // a lone heading over empty space reads as something failing to load.
+  if (items.length === 0) return null;
+
   return (
     <div>
-      <div className="px-3 text-[11px] font-semibold tracking-wider text-slate-400">{title}</div>
+      <div className="px-3 text-[11px] font-semibold tracking-wider text-slate-400">
+        {title}
+      </div>
       <div className="mt-2 space-y-0.5">
         {items.map((item) => {
           const isActive = item.key === active;
@@ -100,43 +216,54 @@ function NavSection({
 }
 
 function SidebarInner({ active }: { active: AdminNavKey }) {
+  const { can } = useAuth();
+
+  // Built from what this account can actually do, so no link here leads to
+  // a screen the API would refuse.
+  const allowed = (items: NavItem[]) =>
+    items.filter((item) => can(item.permission));
+
   return (
     <>
       <div className="h-[65px] flex items-center gap-2.5 px-5 border-b border-slate-100 shrink-0">
-        <img src="/logo.png" alt="Energy Tail" className="h-9 w-auto object-contain" />
+        <img
+          src="/logo.png"
+          alt="Energy Tail"
+          className="h-9 w-auto object-contain"
+        />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
-        <NavSection title="MAIN" items={mainNav} active={active} />
-        <NavSection title="MANAGEMENT" items={managementNav} active={active} />
-        <NavSection title="SYSTEM" items={systemNav} active={active} />
+        <NavSection title="MAIN" items={allowed(mainNav)} active={active} />
+        <NavSection
+          title="MANAGEMENT"
+          items={allowed(managementNav)}
+          active={active}
+        />
+        <NavSection title="SYSTEM" items={allowed(systemNav)} active={active} />
       </nav>
 
       <div className="border-t border-slate-100 px-3 pt-2.5 pb-3 space-y-3 shrink-0">
-        <div className="flex items-center gap-2.5 px-2">
-          <div className="w-9 h-9 rounded-full bg-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-500 text-xs font-semibold">
-            SA
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-800 truncate">Super Admin</div>
-            <div className="text-xs text-slate-400 truncate">admin@energytail.com</div>
-          </div>
-        </div>
+        <UserMenu align="left" showEmail />
 
         <div className="rounded-lg border border-slate-100 p-2.5">
-          <div className="text-[11px] font-semibold text-slate-400 px-1 mb-1.5">Quick Links</div>
-          <a href="/" className="flex items-center justify-between px-1.5 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-50">
+          <div className="text-[11px] font-semibold text-slate-400 px-1 mb-1.5">
+            Quick Links
+          </div>
+          <Link
+            href="/"
+            className="flex items-center justify-between px-1.5 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-50"
+          >
             View Site
             <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-          </a>
-          <a href="/admin/audit-logs" className="flex items-center justify-between px-1.5 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-50">
-            Clear Cache
-            <Trash2 className="w-3.5 h-3.5 text-slate-400" />
-          </a>
-          <a href="/admin/audit-logs" className="flex items-center justify-between px-1.5 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-50">
-            System Status
+          </Link>
+          <Link
+            href="/admin/audit-logs"
+            className="flex items-center justify-between px-1.5 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-50"
+          >
+            Audit Logs
             <Activity className="w-3.5 h-3.5 text-emerald-500" />
-          </a>
+          </Link>
         </div>
       </div>
     </>

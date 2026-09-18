@@ -194,16 +194,20 @@ it('refuses to strip the administrator role of its permissions', function () {
 });
 
 it('updates a label without touching the machine key', function () {
-    $role = Role::where('name', 'employer')->first();
+    // A custom role, because system roles can no longer be renamed at all.
+    $created = actingAs($this->admin)
+        ->postJson('/api/v1/admin/roles', ['label' => 'Content Moderator'])
+        ->assertCreated()
+        ->json('data');
 
     actingAs($this->admin)
-        ->putJson("/api/v1/admin/roles/{$role->id}", [
+        ->putJson("/api/v1/admin/roles/{$created['id']}", [
             'label' => 'Hiring Manager',
         ])
         ->assertOk()
         ->assertJsonPath('data.label', 'Hiring Manager')
         // Permission checks reference the name, so it must never change.
-        ->assertJsonPath('data.name', 'employer');
+        ->assertJsonPath('data.name', $created['name']);
 });
 
 // ------------------------------------------------------------------ delete
@@ -260,4 +264,35 @@ it('applies a permission change immediately rather than after a cache expiry', f
     // Spatie caches the permission map, so the service has to flush it on
     // every write or changes appear to do nothing.
     expect($this->employer->fresh()->can('jobs.approve'))->toBeTrue();
+});
+
+/*
+ * Regression: the admin screen let a system role be renamed. The label is how
+ * a role is identified everywhere in the UI, and nothing stopped it being set
+ * to another role's name — renaming Administrator to "Employer" left a list
+ * with two entries reading the same and no way to tell which one granted full
+ * access.
+ */
+it('refuses to rename a system role', function () {
+    $admin = Role::where('name', 'administrator')->firstOrFail();
+
+    actingAs($this->admin)
+        ->putJson("/api/v1/admin/roles/{$admin->id}", ['label' => 'Employer'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('label');
+
+    expect($admin->fresh()->label)->toBe('Administrator');
+});
+
+it('still allows a system role description to be changed', function () {
+    $employer = Role::where('name', 'employer')->firstOrFail();
+
+    actingAs($this->admin)
+        ->putJson("/api/v1/admin/roles/{$employer->id}", [
+            'label' => 'Employer',
+            'description' => 'Posts jobs and reviews applicants',
+        ])
+        ->assertOk();
+
+    expect($employer->fresh()->description)->toBe('Posts jobs and reviews applicants');
 });

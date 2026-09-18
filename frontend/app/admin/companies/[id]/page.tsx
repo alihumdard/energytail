@@ -1,449 +1,398 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
-import DashboardLayout from "@/components/admin/DashboardLayout";
-import { Breadcrumb } from "@/components/admin/DashboardUI";
-import { companies } from "@/data/mockData";
+import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
-  Pencil,
-  ChevronDown,
-  Share2,
-  AtSign,
-  MessageCircle,
-  Link2,
+  BadgeCheck,
   Briefcase,
-  Calendar,
-  Users,
-  MapPin,
-  Globe,
-  Building,
-  Mail,
-  Phone,
   CheckCircle2,
-  Eye,
-  MousePointerClick,
-  UserPlus,
-  ImageIcon,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Star,
+  XCircle,
 } from "lucide-react";
+import AdminShell from "@/components/admin/AdminShell";
+import { ApiError } from "@/lib/api/client";
+import { adminCompanies } from "@/lib/api/endpoints";
+import type { AdminCompany } from "@/lib/api/types";
 
-const tabs = [
-  "Overview",
-  "Contact & Social",
-  "Company Culture",
-  "Jobs",
-  "Analytics",
-  "Billing & Subscriptions",
-  "Notes & Activity",
-];
+const STATUS_STYLE: Record<string, string> = {
+  active: "bg-emerald-50 text-emerald-700",
+  pending: "bg-blue-50 text-blue-700",
+  suspended: "bg-red-50 text-red-700",
+  inactive: "bg-slate-100 text-slate-600",
+};
 
-export default function CompanyDetailsPage() {
-  const params = useParams();
-  const id = params?.id as string;
-  const company = companies.find((c) => c.id === id) ?? companies[0];
-  const [activeTab, setActiveTab] = useState("Overview");
+function humanise(value: string | null): string {
+  if (!value) return "—";
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+export default function AdminCompanyDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+
+  const [company, setCompany] = useState<AdminCompany | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [suspending, setSuspending] = useState(false);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    adminCompanies
+      .get(Number(id))
+      .then(({ data }) => {
+        if (!cancelled) setCompany(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof ApiError ? err.detail : "Could not load the company.",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  async function run(work: () => Promise<{ data: AdminCompany }>) {
+    setBusy(true);
+    setActionError(null);
+
+    try {
+      const { data } = await work();
+      setCompany(data);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.detail : "Could not update the company.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Company Details</h1>
-          <div className="mt-1">
-            <Breadcrumb
-              items={[
-                { label: "Dashboard", href: "/admin/dashboard" },
-                { label: "Companies", href: "/admin/companies" },
-                { label: company.name },
-              ]}
-            />
-          </div>
+    <AdminShell active="companies">
+      <Link
+        href="/admin/companies"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        All companies
+      </Link>
+
+      {loadError ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+          <p className="text-slate-500">{loadError}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
-          <button className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg px-4 py-2.5 hover:bg-gray-50">
-            <ArrowLeft size={16} />
-            Back to Companies
-          </button>
-          <button className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg px-4 py-2.5 hover:bg-blue-100">
-            <Pencil size={15} />
-            Edit Company
-          </button>
-          <button className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm">
-            Actions
-            <ChevronDown size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Header card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-8">
-          <div className="flex items-start gap-4 flex-1 min-w-0">
-            <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl shrink-0 border border-gray-100 ${company.logoColor}`}>
-              {company.logo}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center flex-wrap gap-2">
-                <h2 className="text-xl font-bold text-gray-900">{company.name}</h2>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-green-50 text-green-600 text-xs font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                  {company.status}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
-                <span className="flex items-center gap-1.5">
-                  <Building size={14} /> {company.industry}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={14} /> {company.location}
-                </span>
-                <span className="flex items-center gap-1.5 text-blue-600">
-                  <Globe size={14} /> www.{company.name.toLowerCase().replace(/\s+/g, "")}.com
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-3 max-w-2xl">
-                {company.name} is a global leader in providing innovative energy solutions.
-                We specialize in exploration, drilling, production, and energy management
-                with a commitment to safety and sustainability.
-              </p>
-              <div className="flex items-center gap-2 mt-4">
-                {[Share2, AtSign, MessageCircle, Link2].map((Icon, i) => (
-                  <button
-                    key={i}
-                    className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
-                  >
-                    <Icon size={15} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:w-72 shrink-0 grid grid-cols-1 gap-y-3 text-sm lg:border-l lg:border-gray-100 lg:pl-6">
-            <InfoRow icon={Building} label="Company ID" value={company.id} />
-            <InfoRow icon={Mail} label="Email" value={company.email} />
-            <InfoRow icon={Phone} label="Phone" value="+1 (713) 555-0198" />
-            <InfoRow icon={Users} label="Company Size" value="201 – 500 employees" />
-            <InfoRow icon={Calendar} label="Joined Date" value={company.joinedDate} />
-            <InfoRow icon={Calendar} label="Last Updated" value={`${company.joinedDate} 10:30 AM`} />
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 mb-6 overflow-x-auto no-scrollbar">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${
-              activeTab === tab
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab}
-            {tab === "Jobs" && (
-              <span className="bg-gray-100 text-gray-500 text-xs rounded-full px-1.5 py-0.5">
-                {company.jobs}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {activeTab !== "Overview" ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 shadow-sm">
-          {tabs.includes(activeTab) ? `${activeTab} content goes here.` : ""}
+      ) : !company ? (
+        <div className="flex items-center gap-2 py-16 text-sm text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading the company…
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-6 min-w-0">
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">About Company</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                {company.name} delivers end-to-end energy services across the globe. Our
-                expertise spans upstream, midstream, and downstream operations. We leverage
-                advanced technology and a highly skilled workforce to provide safe, efficient,
-                and sustainable energy solutions.
-              </p>
-              <div className="grid grid-cols-2 gap-y-5 mt-6">
-                <DetailItem icon={Building} label="Industry" value={company.industry} />
-                <DetailItem icon={Calendar} label="Founded" value="2012" />
-                <DetailItem icon={Users} label="Company Size" value="201 – 500 employees" />
-                <DetailItem icon={MapPin} label="Headquarters" value={company.location} />
-                <DetailItem
-                  icon={Globe}
-                  label="Website"
-                  value={`www.${company.name.toLowerCase().replace(/\s+/g, "")}.com`}
-                  link
-                />
-                <DetailItem icon={Briefcase} label="Company Type" value="Private" />
-              </div>
+        <>
+          {actionError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {actionError}
             </div>
+          )}
 
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Company Cover</h3>
-                <button className="text-gray-400 hover:text-blue-600">
-                  <Pencil size={15} />
-                </button>
-              </div>
-              <div className="rounded-lg overflow-hidden aspect-[16/6] bg-gradient-to-br from-slate-700 via-slate-800 to-black flex items-center justify-center">
-                <ImageIcon className="text-white/30" size={40} />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Company Logo</h3>
-                <button className="text-gray-400 hover:text-blue-600">
-                  <Pencil size={15} />
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className={`w-14 h-14 rounded-lg flex items-center justify-center text-2xl ${company.logoColor}`}>
-                  {company.logo}
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900 leading-tight">
-                    {company.name.split(" ")[0].toUpperCase()}
-                  </p>
-                  <p className="text-xs text-gray-400 tracking-widest">
-                    {company.name.split(" ").slice(1).join(" ").toUpperCase()}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Company Highlights</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <HighlightCard
-                  icon={Briefcase}
-                  iconBg="bg-blue-50"
-                  iconColor="text-blue-600"
-                  label="Total Jobs"
-                  value={company.jobs}
-                  linkLabel="View all jobs"
-                />
-                <HighlightCard
-                  icon={Eye}
-                  iconBg="bg-green-50"
-                  iconColor="text-green-600"
-                  label="Total Views"
-                  value="12,548"
-                  linkLabel="All time views"
-                  noArrow
-                />
-                <HighlightCard
-                  icon={MousePointerClick}
-                  iconBg="bg-orange-50"
-                  iconColor="text-orange-500"
-                  label="Apply Clicks"
-                  value="1,298"
-                  linkLabel="All time clicks"
-                  noArrow
-                />
-                <HighlightCard
-                  icon={UserPlus}
-                  iconBg="bg-purple-50"
-                  iconColor="text-purple-600"
-                  label="Followers"
-                  value="356"
-                  linkLabel="Company followers"
-                  noArrow
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Right column */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Status &amp; Verification</h3>
-              <div className="space-y-3.5 text-sm">
-                <StatusRow label="Status" value="Active" ok />
-                <StatusRow label="Email Verified" value="Verified" ok />
-                <StatusRow label="Company Verified" value="Verified" ok />
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-gray-500">Profile Completion</span>
-                    <span className="font-semibold text-gray-900">100%</span>
+          <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+            <div className="min-w-0 space-y-6">
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-2xl font-bold text-slate-400">
+                      {company.name.charAt(0)}
+                    </span>
+                    <div className="min-w-0">
+                      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold text-slate-900">
+                        {company.name}
+                        {company.is_verified && (
+                          <BadgeCheck size={19} className="text-blue-500" />
+                        )}
+                        {company.is_featured && (
+                          <Star
+                            size={16}
+                            className="fill-amber-400 text-amber-400"
+                          />
+                        )}
+                      </h1>
+                      {company.industry && (
+                        <p className="mt-0.5 text-sm text-slate-500">
+                          {company.industry.name}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: "100%" }} />
-                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      STATUS_STYLE[company.status] ??
+                      "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {humanise(company.status)}
+                  </span>
                 </div>
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-gray-500">Admin Notes</span>
-                    <button className="text-gray-400 hover:text-blue-600">
-                      <Pencil size={14} />
+
+                {company.description && (
+                  <p className="mt-5 whitespace-pre-line border-t border-slate-100 pt-5 text-sm leading-relaxed text-slate-600">
+                    {company.description}
+                  </p>
+                )}
+
+                <dl className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
+                  {[
+                    ["Owner", company.owner?.name ?? "—"],
+                    ["Owner email", company.owner?.email ?? "—"],
+                    [
+                      "Location",
+                      [company.city?.name, company.country?.name]
+                        .filter(Boolean)
+                        .join(", ") || "—",
+                    ],
+                    ["Company size", company.company_size ?? "—"],
+                    [
+                      "Founded",
+                      company.founded_year ? String(company.founded_year) : "—",
+                    ],
+                    ["Registered", formatDate(company.created_at)],
+                    ["Verified on", formatDate(company.verified_at)],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-xs text-slate-400">{label}</dt>
+                      <dd className="mt-0.5 truncate text-sm text-slate-700">
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+
+              {/* Contact details are on the record but never on the public
+                      page — a moderator can see them here. */}
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <h2 className="mb-3 font-semibold text-slate-900">Contact</h2>
+                <div className="space-y-2 text-sm">
+                  {company.email ? (
+                    <p className="flex items-center gap-2 text-slate-600">
+                      <Mail size={14} className="text-slate-400" />
+                      {company.email}
+                    </p>
+                  ) : null}
+                  {company.phone ? (
+                    <p className="flex items-center gap-2 text-slate-600">
+                      <Phone size={14} className="text-slate-400" />
+                      {company.phone}
+                    </p>
+                  ) : null}
+                  {company.website ? (
+                    <a
+                      href={company.website}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                    >
+                      <Globe size={14} />
+                      {company.website.replace(/^https?:\/\//, "")}
+                    </a>
+                  ) : null}
+                  {company.address ? (
+                    <p className="flex items-start gap-2 text-slate-600">
+                      <MapPin size={14} className="mt-0.5 text-slate-400" />
+                      {company.address}
+                    </p>
+                  ) : null}
+                  {!company.email &&
+                    !company.phone &&
+                    !company.website &&
+                    !company.address && (
+                      <p className="text-slate-400">
+                        No contact details on file.
+                      </p>
+                    )}
+                </div>
+              </div>
+            </div>
+
+            {/* Moderation */}
+            <aside className="min-w-0 space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs text-slate-400">Jobs posted</p>
+                <p className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900">
+                  <Briefcase size={18} className="text-slate-400" />
+                  {company.jobs_count}
+                </p>
+                <Link
+                  href={`/admin/jobs?company_id=${company.id}`}
+                  className="mt-2 inline-block text-xs font-semibold text-blue-600"
+                >
+                  View their listings
+                </Link>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="mb-3 font-semibold text-slate-900">
+                  Moderation
+                </h2>
+
+                <div className="space-y-2">
+                  {company.status !== "active" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        run(() => adminCompanies.approve(company.id))
+                      }
+                      className="flex w-full items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <CheckCircle2 size={15} /> Approve
                     </button>
-                  </div>
-                  <p className="text-gray-400 text-sm">No notes added.</p>
-                </div>
-              </div>
-            </div>
+                  )}
 
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                <ActivityRow
-                  icon={Briefcase}
-                  iconBg="bg-green-50"
-                  iconColor="text-green-600"
-                  title="New job posted"
-                  detail="Drilling Operations Manager"
-                  time="May 18, 2025 09:15 AM"
-                  link
-                />
-                <ActivityRow
-                  icon={Eye}
-                  iconBg="bg-blue-50"
-                  iconColor="text-blue-600"
-                  title="Profile updated"
-                  detail="Company information updated"
-                  time="May 18, 2025 08:45 AM"
-                />
-                <ActivityRow
-                  icon={UserPlus}
-                  iconBg="bg-orange-50"
-                  iconColor="text-orange-500"
-                  title="Subscription renewed"
-                  detail="Premium Plan – Monthly"
-                  time="May 18, 2025 08:30 AM"
-                />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      run(() => adminCompanies.toggleVerified(company.id))
+                    }
+                    className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <BadgeCheck
+                      size={15}
+                      className={company.is_verified ? "text-blue-500" : ""}
+                    />
+                    {company.is_verified
+                      ? "Remove verification"
+                      : "Verify company"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      run(() => adminCompanies.toggleFeatured(company.id))
+                    }
+                    className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Star
+                      size={15}
+                      className={
+                        company.is_featured
+                          ? "fill-amber-400 text-amber-400"
+                          : ""
+                      }
+                    />
+                    {company.is_featured ? "Remove feature" : "Feature company"}
+                  </button>
+
+                  {company.status !== "suspended" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setSuspending(true)}
+                      className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <XCircle size={15} /> Suspend
+                    </button>
+                  )}
+                </div>
+
+                {busy && (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Working…
+                  </p>
+                )}
               </div>
-              <button className="w-full mt-4 text-sm font-medium text-blue-600 border border-gray-200 rounded-lg py-2.5 hover:bg-gray-50">
-                View all activity
+
+              {company.status === "active" && (
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <Link
+                    href={`/companies/${company.slug}`}
+                    target="_blank"
+                    className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    <ExternalLink size={14} /> View public page
+                  </Link>
+                </div>
+              )}
+            </aside>
+          </div>
+        </>
+      )}
+
+      {suspending && company && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              Suspend {company.name}?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Their public page comes down and their listings stay on record.
+              The reason is written to the audit log.
+            </p>
+
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Why is this company being suspended?"
+              className="mt-4 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSuspending(false);
+                  setReason("");
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reason.trim() === ""}
+                onClick={() => {
+                  const text = reason;
+                  setSuspending(false);
+                  setReason("");
+                  run(() => adminCompanies.suspend(company.id, text));
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                Suspend
               </button>
             </div>
           </div>
         </div>
       )}
-    </DashboardLayout>
-  );
-}
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <Icon size={15} className="text-gray-400 shrink-0" />
-      <span className="text-gray-400 w-28 shrink-0">{label}</span>
-      <span className="text-gray-700 font-medium truncate">{value}</span>
-    </div>
-  );
-}
-
-function DetailItem({
-  icon: Icon,
-  label,
-  value,
-  link,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  link?: boolean;
-}) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <Icon size={16} className="text-gray-400 mt-0.5 shrink-0" />
-      <div>
-        <p className="text-xs text-gray-400">{label}</p>
-        <p className={`text-sm font-medium mt-0.5 ${link ? "text-blue-600" : "text-gray-800"}`}>
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function HighlightCard({
-  icon: Icon,
-  iconBg,
-  iconColor,
-  label,
-  value,
-  linkLabel,
-  noArrow,
-}: {
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
-  label: string;
-  value: string | number;
-  linkLabel: string;
-  noArrow?: boolean;
-}) {
-  return (
-    <div className="border border-gray-100 rounded-lg p-4">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${iconBg}`}>
-        <Icon size={17} className={iconColor} />
-      </div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
-      <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1">
-        {linkLabel}
-        {!noArrow && <span>→</span>}
-      </p>
-    </div>
-  );
-}
-
-function StatusRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span
-        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md ${
-          ok ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-500"
-        }`}
-      >
-        {ok && <CheckCircle2 size={12} />}
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function ActivityRow({
-  icon: Icon,
-  iconBg,
-  iconColor,
-  title,
-  detail,
-  time,
-  link,
-}: {
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  detail: string;
-  time: string;
-  link?: boolean;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconBg}`}>
-        <Icon size={15} className={iconColor} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-800">{title}</p>
-        <p className={`text-xs mt-0.5 ${link ? "text-blue-600" : "text-gray-400"}`}>{detail}</p>
-        <p className="text-xs text-gray-300 mt-0.5">{time}</p>
-      </div>
-    </div>
+    </AdminShell>
   );
 }

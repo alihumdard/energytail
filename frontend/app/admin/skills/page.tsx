@@ -23,7 +23,37 @@ export default function SkillsPage() {
       navKey="skills"
       title="Skills"
       noun="skills"
+      singular="Skill"
       api={adminTaxonomy.skills}
+      fields={[
+        {
+          name: "name",
+          label: "Skill Name",
+          required: true,
+          placeholder: "e.g. Well Integrity",
+        },
+        {
+          name: "category",
+          label: "Category",
+          placeholder: "e.g. Drilling",
+          nullable: true,
+        },
+        {
+          name: "demand_level",
+          label: "Demand Level",
+          type: "select",
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+            { value: "very_high", label: "Very High" },
+          ],
+        },
+        { name: "icon", label: "Icon", placeholder: "⚙️", nullable: true },
+        { name: "color", label: "Colour", type: "color", nullable: true },
+        { name: "sort_order", label: "Sort Order", type: "number" },
+        { name: "is_active", label: "Active", type: "checkbox" },
+      ]}
       statLabels={{
         total: "Total Skills",
         active: "Active",

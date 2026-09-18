@@ -56,6 +56,19 @@ class UserController extends Controller
             $direction
         );
 
+        /*
+         * Tiebreaker, and not optional. The seeded users share a created_at
+         * to the second, and Postgres gives no order at all among rows that
+         * compare equal — it returns them in heap order, which an UPDATE
+         * changes, because the new row version is written at the end.
+         *
+         * Without this, editing one user reshuffled the whole page: the row
+         * you had just edited moved, a different user took its place, and it
+         * read as though the wrong record had been changed. Paging was just
+         * as unsound, repeating some users and skipping others.
+         */
+        $query->orderBy('id', 'desc');
+
         $users = $query->paginate(min(100, max(1, $request->integer('per_page', 15))));
 
         return response()->json([

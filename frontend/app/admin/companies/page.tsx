@@ -1,303 +1,482 @@
 "use client";
 
-import DashboardLayout from "@/components/admin/DashboardLayout";
-import { Breadcrumb, StatCard, StatusBadge, DonutChart } from "@/components/admin/DashboardUI";
-import { companies } from "@/data/mockData";
+import { useState } from "react";
 import Link from "next/link";
 import {
-  Building2,
+  BadgeCheck,
   Briefcase,
-  Users,
-  ShieldAlert,
-  Plus,
-  Download,
+  Building2,
+  CheckCircle2,
+  ExternalLink,
+  Globe,
+  Loader2,
   Search,
-  Eye,
-  Pencil,
-  MoreVertical,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  ShieldAlert,
+  Star,
+  XCircle,
 } from "lucide-react";
+import AdminShell from "@/components/admin/AdminShell";
+import { ApiError } from "@/lib/api/client";
+import { adminCompanies } from "@/lib/api/endpoints";
+import { useApiResource, useDebounced } from "@/lib/hooks/useApiResource";
+import type { AdminCompany } from "@/lib/api/types";
 
-export default function CompaniesPage() {
+const STATUS_STYLE: Record<string, string> = {
+  active: "bg-emerald-50 text-emerald-700",
+  pending: "bg-blue-50 text-blue-700",
+  suspended: "bg-red-50 text-red-700",
+  inactive: "bg-slate-100 text-slate-600",
+};
+
+const TABS = [
+  { label: "All", status: "" },
+  { label: "Pending", status: "pending" },
+  { label: "Active", status: "active" },
+  { label: "Suspended", status: "suspended" },
+  { label: "Inactive", status: "inactive" },
+];
+
+function humanise(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export default function AdminCompaniesPage() {
+  const [tab, setTab] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [suspending, setSuspending] = useState<AdminCompany | null>(null);
+  const [reason, setReason] = useState("");
+
+  const debouncedSearch = useDebounced(search);
+
+  const {
+    data: list,
+    loading,
+    refetch,
+  } = useApiResource(
+    () =>
+      adminCompanies.list({
+        status: tab || undefined,
+        search: debouncedSearch || undefined,
+        page,
+        per_page: 20,
+      }),
+    [tab, debouncedSearch, page],
+  );
+
+  const { data: statsResponse, refetch: refetchStats } = useApiResource(
+    () => adminCompanies.stats(),
+    [],
+  );
+
+  const companies = list?.data ?? [];
+  const meta = list?.meta;
+  const stats = statsResponse?.data.stats;
+
+  async function run(company: AdminCompany, work: () => Promise<unknown>) {
+    setBusyId(company.id);
+    setActionError(null);
+
+    try {
+      await work();
+      refetch();
+      refetchStats();
+    } catch (err) {
+      // ApiError.detail, not .message: a 422's top-level text is always
+      // "The given data was invalid." and explains nothing.
+      setActionError(
+        err instanceof ApiError ? err.detail : "Could not update the company.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmSuspend() {
+    if (!suspending) return;
+
+    const company = suspending;
+    const text = reason;
+
+    setSuspending(null);
+    setReason("");
+
+    await run(company, () => adminCompanies.suspend(company.id, text));
+  }
+
+  const cards = [
+    {
+      label: "Total Companies",
+      value: stats?.total,
+      icon: Building2,
+      tone: "bg-blue-50 text-blue-600",
+    },
+    {
+      label: "Active",
+      value: stats?.active,
+      icon: CheckCircle2,
+      tone: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      label: "Verified",
+      value: stats?.verified,
+      icon: BadgeCheck,
+      tone: "bg-violet-50 text-violet-600",
+    },
+    {
+      label: "Pending Review",
+      value: stats?.pending,
+      icon: ShieldAlert,
+      tone: "bg-orange-50 text-orange-600",
+    },
+  ];
+
   return (
-    <DashboardLayout>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Companies Management</h1>
-          <div className="mt-1">
-            <Breadcrumb items={[{ label: "Dashboard", href: "/admin/dashboard" }, { label: "Companies" }]} />
-          </div>
-        </div>
-        <button className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm self-start lg:self-auto">
-          <Plus size={16} />
-          Add New Company
-        </button>
+    <AdminShell active="companies">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Companies</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Approve, verify and suspend the companies posting on the board.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-        <div className="min-w-0">
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <StatCard
-              icon={Building2}
-              iconBg="bg-blue-50"
-              iconColor="text-blue-600"
-              label="Total Companies"
-              value="1,253"
-              delta="14.2%"
-              deltaUp
-            />
-            <StatCard
-              icon={Briefcase}
-              iconBg="bg-green-50"
-              iconColor="text-green-600"
-              label="Active Companies"
-              value="1,098"
-              delta="12.8%"
-              deltaUp
-            />
-            <StatCard
-              icon={Users}
-              iconBg="bg-orange-50"
-              iconColor="text-orange-500"
-              label="Pending Approval"
-              value="42"
-              delta="5.3%"
-              deltaUp
-            />
-            <StatCard
-              icon={ShieldAlert}
-              iconBg="bg-red-50"
-              iconColor="text-red-500"
-              label="Suspended"
-              value="18"
-              delta="10.5%"
-              deltaUp={false}
-            />
-          </div>
-
-          {/* Toolbar */}
-          <div className="bg-white rounded-t-xl border border-gray-200 border-b-0 p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-            <div className="flex items-center gap-2">
-              <button className="inline-flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
-                Bulk Actions
-                <ChevronDown size={14} />
-              </button>
-              <button className="text-sm text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50">
-                Apply
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 hover:bg-blue-100">
-                <Download size={15} />
-                Export
-              </button>
-              <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  placeholder="Search companies..."
-                  className="pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500/30 w-40 sm:w-52"
-                />
+      {/* Stats */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((c) => (
+          <div
+            key={c.label}
+            className="rounded-xl border border-slate-200 bg-white p-5"
+          >
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-sm text-slate-500">{c.label}</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">
+                  {c.value === undefined ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  ) : (
+                    c.value.toLocaleString()
+                  )}
+                </p>
               </div>
+              <span
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${c.tone}`}
+              >
+                <c.icon size={20} />
+              </span>
             </div>
           </div>
+        ))}
+      </div>
 
-          {/* Table */}
-          <div className="bg-white border border-gray-200 rounded-b-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-gray-500">
-                    <th className="p-4 w-10">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                    </th>
-                    <th className="p-4 font-medium whitespace-nowrap">Company</th>
-                    <th className="p-4 font-medium whitespace-nowrap">Industry</th>
-                    <th className="p-4 font-medium whitespace-nowrap">Location</th>
-                    <th className="p-4 font-medium whitespace-nowrap">Jobs</th>
-                    <th className="p-4 font-medium whitespace-nowrap">Status</th>
-                    <th className="p-4 font-medium whitespace-nowrap">
-                      <span className="flex items-center gap-1">
-                        Joined Date <ChevronDown size={13} />
-                      </span>
-                    </th>
-                    <th className="p-4 font-medium whitespace-nowrap">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((c) => (
-                    <tr key={c.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60">
-                      <td className="p-4">
-                        <input type="checkbox" className="rounded border-gray-300" />
-                      </td>
-                      <td className="p-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <span className={`w-8 h-8 rounded-md flex items-center justify-center text-sm ${c.logoColor}`}>
-                            {c.logo}
-                          </span>
-                          <div>
-                            <Link
-                              href={`/admin/companies/${c.id}`}
-                              className="font-medium text-blue-600 hover:underline"
-                            >
-                              {c.name}
-                            </Link>
-                            <p className="text-xs text-gray-400">{c.email}</p>
-                          </div>
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {actionError}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white">
+        {/* Tabs + search */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
+          <div className="flex flex-wrap gap-1">
+            {TABS.map((t) => (
+              <button
+                key={t.label}
+                type="button"
+                onClick={() => {
+                  setTab(t.status);
+                  setPage(1);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  tab === t.status
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative ml-auto w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Name, email or website…"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Table */}
+        {loading && companies.length === 0 ? (
+          <div className="flex items-center gap-2 p-10 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading companies…
+          </div>
+        ) : companies.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-500">
+            No companies match this filter.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-4 py-3 font-medium">Owner</th>
+                  <th className="px-4 py-3 font-medium">Location</th>
+                  <th className="px-4 py-3 font-medium">Jobs</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {companies.map((c) => {
+                  const busy = busyId === c.id;
+
+                  return (
+                    <tr
+                      key={c.id}
+                      className="border-b border-slate-50 last:border-0"
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-800">{c.name}</p>
+                          {c.is_verified && (
+                            <BadgeCheck
+                              size={14}
+                              className="shrink-0 text-blue-500"
+                            />
+                          )}
+                          {c.is_featured && (
+                            <Star
+                              size={13}
+                              className="shrink-0 fill-amber-400 text-amber-400"
+                            />
+                          )}
                         </div>
-                      </td>
-                      <td className="p-4 text-gray-600 whitespace-nowrap">{c.industry}</td>
-                      <td className="p-4 text-gray-600 whitespace-nowrap">{c.location}</td>
-                      <td className="p-4 whitespace-nowrap">
-                        <span className="text-blue-600 font-medium">{c.jobs}</span>
-                      </td>
-                      <td className="p-4 whitespace-nowrap">
-                        <StatusBadge status={c.status} />
-                      </td>
-                      <td className="p-4 text-gray-600 whitespace-nowrap">{c.joinedDate}</td>
-                      <td className="p-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-gray-400">
-                          <Link
-                            href={`/admin/companies/${c.id}`}
-                            className="p-1.5 hover:bg-gray-100 rounded-md hover:text-blue-600"
+                        {c.website && (
+                          <a
+                            href={c.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600"
                           >
-                            <Eye size={16} />
-                          </Link>
-                          <button className="p-1.5 hover:bg-gray-100 rounded-md hover:text-blue-600">
-                            <Pencil size={16} />
-                          </button>
-                          <button className="p-1.5 hover:bg-gray-100 rounded-md hover:text-blue-600">
-                            <MoreVertical size={16} />
-                          </button>
+                            <Globe size={11} />
+                            {c.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {c.owner ? (
+                          <>
+                            <p className="text-slate-700">{c.owner.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {c.owner.email}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-600">
+                        {[c.city?.name, c.country?.name]
+                          .filter(Boolean)
+                          .join(", ") || "—"}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center gap-1 text-slate-600">
+                          <Briefcase size={13} className="text-slate-400" />
+                          {c.jobs_count}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            STATUS_STYLE[c.status] ??
+                            "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {humanise(c.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {busy ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                title={
+                                  c.is_verified
+                                    ? "Remove verification"
+                                    : "Verify company"
+                                }
+                                onClick={() =>
+                                  run(c, () =>
+                                    adminCompanies.toggleVerified(c.id),
+                                  )
+                                }
+                                className={`rounded p-1.5 hover:bg-slate-100 ${
+                                  c.is_verified
+                                    ? "text-blue-500"
+                                    : "text-slate-300"
+                                }`}
+                              >
+                                <BadgeCheck size={16} />
+                              </button>
+
+                              <button
+                                type="button"
+                                title={
+                                  c.is_featured
+                                    ? "Unfeature"
+                                    : "Feature on homepage"
+                                }
+                                onClick={() =>
+                                  run(c, () =>
+                                    adminCompanies.toggleFeatured(c.id),
+                                  )
+                                }
+                                className={`rounded p-1.5 hover:bg-slate-100 ${
+                                  c.is_featured
+                                    ? "text-amber-500"
+                                    : "text-slate-300"
+                                }`}
+                              >
+                                <Star size={16} />
+                              </button>
+
+                              {c.status !== "active" && (
+                                <button
+                                  type="button"
+                                  title="Approve"
+                                  onClick={() =>
+                                    run(c, () => adminCompanies.approve(c.id))
+                                  }
+                                  className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+                              )}
+
+                              {c.status !== "suspended" && (
+                                <button
+                                  type="button"
+                                  title="Suspend"
+                                  onClick={() => setSuspending(c)}
+                                  className="rounded p-1.5 text-red-500 hover:bg-red-50"
+                                >
+                                  <XCircle size={16} />
+                                </button>
+                              )}
+
+                              <Link
+                                href={`/companies/${c.slug}`}
+                                target="_blank"
+                                title="View public page"
+                                className="rounded p-1.5 text-slate-400 hover:bg-slate-100"
+                              >
+                                <ExternalLink size={16} />
+                              </Link>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-100">
-              <p className="text-sm text-gray-500">Showing 1 to 10 of 1,253 companies</p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button className="p-1.5 border border-gray-200 rounded-md text-gray-400 hover:bg-gray-50">
-                  <ChevronLeft size={15} />
-                </button>
-                {[1, 2, 3].map((p) => (
-                  <button
-                    key={p}
-                    className={`w-8 h-8 rounded-md text-sm font-medium ${
-                      p === 1
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-                <span className="px-1 text-gray-400">...</span>
-                <button className="w-8 h-8 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
-                  126
-                </button>
-                <button className="p-1.5 border border-gray-200 rounded-md text-gray-400 hover:bg-gray-50">
-                  <ChevronRight size={15} />
-                </button>
-                <select className="ml-2 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-600 outline-none">
-                  <option>10 / page</option>
-                  <option>25 / page</option>
-                  <option>50 / page</option>
-                </select>
-              </div>
+        {/* Pagination */}
+        {meta && meta.last_page > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 p-4 text-sm">
+            <p className="text-slate-500">
+              Page {meta.current_page} of {meta.last_page} · {meta.total}{" "}
+              companies
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={meta.current_page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={meta.current_page >= meta.last_page}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              >
+                Next
+              </button>
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Right column */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-4">Company Summary</h3>
-            <div className="flex flex-col items-center">
-              <DonutChart
-                total={1253}
-                totalLabel="Total Companies"
-                data={[
-                  { label: "Active", value: 1098, pct: 87.6, color: "#22c55e" },
-                  { label: "Pending", value: 42, pct: 3.4, color: "#f97316" },
-                  { label: "Suspended", value: 18, pct: 1.4, color: "#ef4444" },
-                  { label: "Inactive", value: 95, pct: 7.6, color: "#60a5fa" },
-                ]}
-              />
-              <div className="w-full mt-4 space-y-2.5">
-                {[
-                  { label: "Active", value: "1,098", pct: "(87.6%)", color: "bg-green-500" },
-                  { label: "Pending", value: "42", pct: "(3.4%)", color: "bg-orange-500" },
-                  { label: "Suspended", value: "18", pct: "(1.4%)", color: "bg-red-500" },
-                  { label: "Inactive", value: "95", pct: "(7.6%)", color: "bg-blue-400" },
-                ].map((row) => (
-                  <div key={row.label} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-gray-600">
-                      <span className={`w-2 h-2 rounded-full ${row.color}`} />
-                      {row.label}
-                    </span>
-                    <span className="text-gray-700 font-medium">
-                      {row.value} <span className="text-gray-400 font-normal">{row.pct}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+      {/* Suspend dialog — a reason is required, and it lands in the audit log. */}
+      {suspending && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              Suspend {suspending.name}?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Their listings stay on record. The reason is written to the audit
+              log so anyone reviewing this later can see why.
+            </p>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Filters</h3>
-              <button className="text-xs text-blue-600 font-medium">Clear All</button>
-            </div>
-            <div className="space-y-4">
-              <SelectField label="Status" placeholder="All Status" />
-              <SelectField label="Industry" placeholder="All Industries" />
-              <SelectField label="Country" placeholder="All Countries" />
-              <Field label="Joined Date">
-                <button className="w-full flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-400 hover:bg-gray-50">
-                  Select date range
-                </button>
-              </Field>
-              <Field label="Search">
-                <input
-                  placeholder="Search by company name or email"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/30"
-                />
-              </Field>
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg flex items-center justify-center gap-2">
-                Apply Filters
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Why is this company being suspended?"
+              className="mt-4 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSuspending(null);
+                  setReason("");
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reason.trim() === ""}
+                onClick={confirmSuspend}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                Suspend
               </button>
             </div>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1.5">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function SelectField({ label, placeholder }: { label: string; placeholder: string }) {
-  return (
-    <Field label={label}>
-      <div className="relative">
-        <select className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-500/30 bg-white">
-          <option>{placeholder}</option>
-        </select>
-        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-      </div>
-    </Field>
+      )}
+    </AdminShell>
   );
 }

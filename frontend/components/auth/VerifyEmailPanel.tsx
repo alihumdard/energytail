@@ -6,8 +6,45 @@ import { CheckCircle2, Loader2, MailCheck, RefreshCw, XCircle } from "lucide-rea
 import { ApiError } from "@/lib/api/client";
 import { auth as authApi } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { formatCountdown, useCountdown } from "@/lib/hooks/useCountdown";
 
 type Status = "idle" | "verifying" | "verified" | "failed";
+
+/**
+ * Resend control shared by the idle and failed panels.
+ *
+ * Declared at module level rather than inside the panel: a component created
+ * during render is a new type on every pass, so React unmounts and remounts
+ * it, losing focus and restarting animations.
+ */
+function ResendButton({
+  label,
+  onResend,
+  sending,
+  cooldown,
+}: {
+  label: string;
+  onResend: () => void;
+  sending: boolean;
+  cooldown: number;
+}) {
+  const waiting = cooldown > 0;
+
+  return (
+    <button
+      onClick={onResend}
+      disabled={sending || waiting}
+      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:underline disabled:opacity-60 disabled:no-underline disabled:cursor-not-allowed"
+    >
+      {sending ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <RefreshCw className="w-4 h-4" />
+      )}
+      {waiting ? `Resend in ${formatCountdown(cooldown)}` : label}
+    </button>
+  );
+}
 
 export default function VerifyEmailPanel() {
   const searchParams = useSearchParams();
@@ -26,6 +63,14 @@ export default function VerifyEmailPanel() {
   const [message, setMessage] = useState("");
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+
+  /*
+   * Seconds until another email may be requested. The API enforces this too;
+   * showing it here keeps the user from pressing a button that will only be
+   * refused.
+   */
+  const [cooldownSeconds, setCooldownSeconds] = useState<number | undefined>();
+  const cooldown = useCountdown(cooldownSeconds);
 
   useEffect(() => {
     if (!signedUrl) return;
@@ -79,14 +124,24 @@ export default function VerifyEmailPanel() {
     setResent(false);
 
     try {
-      await authApi.resendVerification();
+      const response = await authApi.resendVerification();
       setResent(true);
+      setCooldownSeconds(response.retry_after ?? 60);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not send the email.");
+      if (err instanceof ApiError && err.isRateLimited) {
+        // Already within the cooldown — adopt the server's figure rather
+        // than showing this as a failure the user did something wrong.
+        setCooldownSeconds(err.retryAfter ?? 60);
+      } else {
+        setMessage(err instanceof Error ? err.message : "Could not send the email.");
+      }
     } finally {
       setResending(false);
     }
   }
+
+  /** Props the idle and failed panels both pass to the resend control. */
+  const resendProps = { onResend: resend, sending: resending, cooldown };
 
   if (status === "verifying") {
     return (
@@ -125,19 +180,28 @@ export default function VerifyEmailPanel() {
           <div>
             <p className="font-semibold text-slate-800 text-sm">Verification failed</p>
             <p className="text-sm text-slate-600 mt-1">{message}</p>
-            {user && (
-              <button
-                onClick={resend}
-                disabled={resending}
-                className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:underline disabled:opacity-60"
-              >
-                {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                Send a new link
-              </button>
+
+            {resent && (
+              <p className="mt-2 text-sm font-medium text-emerald-600">
+                A new link is on its way.
+              </p>
+            )}
+
+            {user ? (
+              <ResendButton {...resendProps} label="Send a new link" />
+            ) : (
+              /*
+                An expired link is usually opened from an email client with no
+                session, so there is nobody to resend to. Signing in is the way
+                back: the app sends unverified users here and the panel can
+                then offer the button above.
+              */
+              <p className="mt-3 text-sm text-slate-600">
+                <a href="/login" className="font-medium text-blue-600 hover:underline">
+                  Sign in
+                </a>{" "}
+                to request a new link.
+              </p>
             )}
           </div>
         </div>
@@ -170,20 +234,11 @@ export default function VerifyEmailPanel() {
             </p>
           )}
 
-          {user && (
-            <button
-              onClick={resend}
-              disabled={resending}
-              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:underline disabled:opacity-60"
-            >
-              {resending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              Resend the email
-            </button>
+          {message && !resent && (
+            <p className="mt-2 text-sm text-red-600">{message}</p>
           )}
+
+          {user && <ResendButton {...resendProps} label="Resend the email" />}
         </div>
       </div>
     </div>

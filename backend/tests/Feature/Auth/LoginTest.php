@@ -175,3 +175,34 @@ it('exposes role permissions so the frontend can render navigation', function ()
     expect($permissions)->toContain('jobs.add')
         ->and($permissions)->not->toContain('users.delete');
 });
+
+/*
+ * Regression: the sign-in routes carried Laravel's stock 'guest' middleware,
+ * which answers an authenticated caller with a 302 to an HTML page. The SPA
+ * parses every reply as JSON, so signing in from a tab that already held a
+ * session failed silently with no message for the user.
+ */
+it('answers an already-authenticated sign-in attempt in json', function () {
+    actingAs($this->user)
+        ->postJson('/api/v1/auth/login', [
+            'email' => 'ali@example.com',
+            'password' => 'Str0ng!Passw0rd',
+        ])
+        ->assertStatus(409)
+        ->assertJsonPath('code', 'already_authenticated');
+});
+
+it('answers an already-authenticated registration attempt in json', function () {
+    actingAs($this->user)
+        ->postJson('/api/v1/auth/register', [
+            'first_name' => 'Someone',
+            'last_name' => 'Else',
+            'email' => 'someone-else@example.com',
+            'password' => 'Str0ng!Passw0rd',
+            'password_confirmation' => 'Str0ng!Passw0rd',
+            'role' => 'job_seeker',
+            'terms_accepted' => true,
+        ])
+        ->assertStatus(409)
+        ->assertJsonPath('code', 'already_authenticated');
+});

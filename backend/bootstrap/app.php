@@ -3,6 +3,8 @@
 use App\Exceptions\ApiExceptionRenderer;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsureGuestForApi;
+use App\Http\Middleware\VerifyCaptcha;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -42,6 +44,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'verified' => EnsureEmailIsVerified::class,
             'active' => EnsureAccountIsActive::class,
+
+            // Replaces Laravel's 'guest' on API routes, which answers with an
+            // HTML redirect the SPA cannot read.
+            'guest.api' => EnsureGuestForApi::class,
+
+            'captcha' => VerifyCaptcha::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

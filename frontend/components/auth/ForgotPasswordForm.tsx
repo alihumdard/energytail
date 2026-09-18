@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { CheckCircle2, Mail, Send } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { auth as authApi } from "@/lib/api/endpoints";
+import { getCaptchaToken } from "@/lib/auth/captcha";
+import { formatCountdown, useCountdown } from "@/lib/hooks/useCountdown";
 import FormField from "@/components/ui/FormField";
 import PrimaryButton from "@/components/ui/PrimaryButton";
 
@@ -13,13 +15,17 @@ export default function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
+  // Above the success branch below: hooks cannot be called conditionally, and
+  // the early return would otherwise skip this one.
+  const cooldown = useCountdown(error?.isRateLimited ? error.retryAfter : undefined);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(email, await getCaptchaToken("forgot_password"));
       setSent(true);
     } catch (err) {
       setError(
@@ -63,14 +69,33 @@ export default function ForgotPasswordForm() {
     );
   }
 
+  // Only the email field renders an error inline, so anything else has to
+  // reach the banner or the form goes quiet on failure.
+  const generalError =
+    error && !error.fieldError("email") && !error.isRateLimited ? error.message : null;
+
+  const throttled = Boolean(error?.isRateLimited) && cooldown > 0;
+
   return (
     <form className="mt-6 space-y-5" onSubmit={handleSubmit} noValidate>
-      {error && !error.isValidation && (
+      {throttled && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          <p className="font-medium">Too many requests</p>
+          <p className="mt-0.5">
+            Wait {formatCountdown(cooldown)} before asking for another link.
+          </p>
+        </div>
+      )}
+
+      {generalError && (
         <div
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
-          {error.message}
+          {generalError}
         </div>
       )}
 
@@ -89,11 +114,15 @@ export default function ForgotPasswordForm() {
 
       <PrimaryButton
         type="submit"
-        disabled={submitting}
+        disabled={submitting || throttled}
         icon={<Send className="w-4 h-4" />}
-        className={submitting ? "opacity-70 cursor-not-allowed" : ""}
+        className={submitting || throttled ? "opacity-70 cursor-not-allowed" : ""}
       >
-        {submitting ? "Sending…" : "Send Reset Link"}
+        {submitting
+          ? "Sending…"
+          : throttled
+            ? `Try again in ${formatCountdown(cooldown)}`
+            : "Send Reset Link"}
       </PrimaryButton>
 
       <p className="text-center text-sm text-slate-500">

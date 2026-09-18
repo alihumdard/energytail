@@ -155,6 +155,10 @@ class SettingController extends Controller
     private function flushCache(): void
     {
         Cache::forget('settings.public');
-        Cache::forget('settings.all');
+
+        // Through the model rather than by repeating its cache key: a rename
+        // there would otherwise leave saved settings served from a stale
+        // cache with nothing to show for it.
+        Setting::flushCache();
     }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, Menu, Bell, MessageSquare, ChevronDown, ShieldCheck, Moon } from "lucide-react";
+import { Search, Menu, Bell, MessageSquare, Moon } from "lucide-react";
 import { setOpen } from "./drawer-store";
+import UserMenu from "./UserMenu";
 
 export default function AdminTopbar({
   variant = "light",
@@ -73,20 +74,7 @@ export default function AdminTopbar({
 
         <div className={`h-8 w-px ${dark ? "bg-white/10" : "bg-slate-100"}`} />
 
-        <div className="flex items-center gap-2.5">
-          <div
-            className={`w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${
-              dark ? "bg-white/10 text-white" : "bg-slate-200 text-slate-500"
-            }`}
-          >
-            {dark ? <ShieldCheck className="w-4 h-4" /> : <span className="text-xs font-semibold">SA</span>}
-          </div>
-          <div className="leading-tight hidden sm:block">
-            <div className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-800"}`}>Super Admin</div>
-            <div className={`text-xs ${dark ? "text-slate-300" : "text-slate-400"}`}>Administrator</div>
-          </div>
-          <ChevronDown className={`w-4 h-4 ${dark ? "text-slate-300" : "text-slate-400"}`} />
-        </div>
+        <UserMenu variant={variant} align="right" />
       </div>
     </header>
   );

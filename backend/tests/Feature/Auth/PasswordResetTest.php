@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\User;
+use App\Notifications\ResetPasswordNotification;
 use Database\Seeders\RolePermissionSeeder;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -26,7 +26,7 @@ it('sends a reset link for a known address', function () {
     postJson('/api/v1/auth/password/forgot', ['email' => 'ali@example.com'])
         ->assertOk();
 
-    Notification::assertSentTo($this->user, ResetPassword::class);
+    Notification::assertSentTo($this->user, ResetPasswordNotification::class);
 });
 
 it('gives the same answer for an unknown address', function () {
@@ -39,7 +39,7 @@ it('gives the same answer for an unknown address', function () {
     // addresses are registered.
     expect($unknown->json('message'))->toBe($known->json('message'));
 
-    Notification::assertSentToTimes($this->user, ResetPassword::class, 1);
+    Notification::assertSentToTimes($this->user, ResetPasswordNotification::class, 1);
 });
 
 it('points the reset email at the frontend', function () {
@@ -47,8 +47,10 @@ it('points the reset email at the frontend', function () {
 
     postJson('/api/v1/auth/password/forgot', ['email' => 'ali@example.com'])->assertOk();
 
-    Notification::assertSentTo($this->user, ResetPassword::class, function ($notification) {
-        $url = $notification->toMail($this->user)->actionUrl;
+    Notification::assertSentTo($this->user, ResetPasswordNotification::class, function ($notification) {
+        // View data rather than actionUrl: the branded mail renders its own
+        // template instead of Laravel's action button.
+        $url = $notification->toMail($this->user)->viewData['url'];
 
         return str_starts_with($url, config('app.frontend_url').'/reset-password')
             && str_contains($url, 'token=')

@@ -242,13 +242,12 @@ export function PublicFooter() {
             </p>
             <div className="mt-5 flex gap-2.5">
               {[Linkedin, Twitter, Facebook, Youtube].map((Icon, i) => (
-                <a
+                <span
                   key={i}
-                  href="/"
                   className="grid h-9 w-9 place-items-center rounded-full border border-[#e2e8f2] text-ink-500 transition hover:border-brand-500 hover:text-brand-500"
                 >
                   <Icon className="h-4 w-4" />
-                </a>
+                </span>
               ))}
             </div>
           </div>
@@ -284,13 +283,12 @@ export function PublicFooter() {
             </div>
             <div className="mt-5 flex gap-2.5">
               {[Linkedin, Twitter, Facebook, Youtube].map((Icon, i) => (
-                <a
+                <span
                   key={i}
-                  href="/"
                   className="grid h-9 w-9 place-items-center rounded-full border border-[#e2e8f2] text-ink-500 transition hover:border-brand-500 hover:text-brand-500"
                 >
                   <Icon className="h-4 w-4" />
-                </a>
+                </span>
               ))}
             </div>
           </div>
@@ -326,9 +324,9 @@ export function MarketingTopStrip() {
         </span>
         <div className="ml-auto flex items-center gap-3.5 lg:ml-0">
           {[Linkedin, Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
-            <a key={i} href="/" className="text-white/80 hover:text-white">
+            <span key={i} className="text-white/80">
               <Icon className="h-3.5 w-3.5" />
-            </a>
+            </span>
           ))}
         </div>
       </div>
@@ -456,30 +454,39 @@ const darkFooterCols = [
 ];
 
 export function DarkFooter() {
+  const year = new Date().getFullYear();
+
   return (
     <footer className="bg-[#0B2B26] text-white">
-      <div className="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
-          <div className="col-span-2 lg:col-span-1">
+      <div className="mx-auto max-w-7xl px-6 py-14">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
+          <div className="sm:col-span-2 lg:col-span-1">
             <Logo />
-            <p className="mt-4 max-w-[250px] text-[12.5px] leading-relaxed text-white/60">
+            <p className="mt-4 max-w-[280px] text-[12.5px] leading-relaxed text-white/60">
               Connecting energy professionals with top employers worldwide.
             </p>
-            <div className="mt-6 flex gap-4">
+            <div className="mt-6 flex gap-3">
               {[Linkedin, Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
-                <a key={i} href="/" className="text-white/70 hover:text-white">
-                  <Icon className="h-[18px] w-[18px]" />
+                <a
+                  key={i}
+                  href="#"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-white/15 text-white/70 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+                >
+                  <Icon className="h-4 w-4" />
                 </a>
               ))}
             </div>
           </div>
           {darkFooterCols.map((col) => (
             <div key={col.title}>
-              <h4 className="mb-4 text-[13.5px] font-bold">{col.title}</h4>
-              <ul className="space-y-2.5">
+              <h4 className="mb-4 text-[13.5px] font-bold tracking-wide">{col.title}</h4>
+              <ul className="space-y-3">
                 {col.items.map((i) => (
                   <li key={i.label}>
-                    <a href={i.href} className="text-[12.5px] text-white/60 hover:text-white">
+                    <a
+                      href={i.href}
+                      className="text-[12.5px] text-white/60 transition-colors hover:text-white"
+                    >
                       {i.label}
                     </a>
                   </li>
@@ -488,8 +495,8 @@ export function DarkFooter() {
             </div>
           ))}
         </div>
-        <div className="mt-12 border-t border-white/10 pt-6 text-[12px] text-white/55">
-          © 2024 Energy Tail. All rights reserved.
+        <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-[12px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {year} Energy Tail. All rights reserved.</p>
         </div>
       </div>
     </footer>

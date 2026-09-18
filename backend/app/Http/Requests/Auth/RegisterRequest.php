@@ -37,6 +37,17 @@ class RegisterRequest extends FormRequest
 
             'terms_accepted' => ['required', 'accepted'],
             'phone' => ['nullable', 'string', 'max:32'],
+
+            /*
+             * Employers name their company at sign-up. Without it an employer
+             * account exists with nothing to post jobs under, and the company
+             * record has to be invented later from the user's own name.
+             *
+             * required_if rather than required: the same endpoint serves job
+             * seekers and authors, for whom these fields are meaningless.
+             */
+            'company_name' => ['required_if:role,employer', 'nullable', 'string', 'max:180'],
+            'company_website' => ['nullable', 'url', 'max:255'],
         ];
     }
 
@@ -48,6 +59,8 @@ class RegisterRequest extends FormRequest
         return [
             'role.in' => 'Choose one of: job seeker, employer, or article author.',
             'terms_accepted.accepted' => 'You must accept the Terms of Use and Privacy Policy.',
+            'company_name.required_if' => 'Enter your company name.',
+            'company_website.url' => 'Enter a full web address, including https://',
         ];
     }
 

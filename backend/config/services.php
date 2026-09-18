@@ -61,4 +61,14 @@ return [
         'redirect' => env('LINKEDIN_REDIRECT_URI', '/api/v1/auth/social/linkedin/callback'),
     ],
 
+    /*
+     * Stripe. Nothing here has a default: an unset secret must make billing
+     * refuse loudly rather than fall back to some other account.
+     */
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
 ];

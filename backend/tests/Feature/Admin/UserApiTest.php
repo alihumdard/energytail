@@ -273,3 +273,51 @@ it('never exposes password hashes', function () {
 
     expect($json)->not->toContain('$2y$');
 });
+
+/*
+ * Regression: the list sorted by created_at with no tiebreaker. The seeded
+ * users share a created_at to the second, and Postgres gives no order at all
+ * among rows that compare equal — it returns them in heap order, which an
+ * UPDATE changes, because the new row version is written at the end.
+ *
+ * Editing one user therefore reshuffled the whole page: the edited row moved,
+ * someone else took its place, and it read as though the wrong record had
+ * been changed.
+ */
+it('keeps the list in the same order after an edit', function () {
+    $shared = now()->subDay();
+
+    // Same timestamp on every row, as the seeder produces.
+    User::factory()->count(8)->role('job_seeker')->create(['created_at' => $shared]);
+
+    $before = actingAs($this->admin)
+        ->getJson('/api/v1/admin/users?per_page=10')
+        ->json('data.*.id');
+
+    $target = $before[2];
+
+    actingAs($this->admin)
+        ->putJson("/api/v1/admin/users/{$target}", ['first_name' => 'Renamed'])
+        ->assertOk();
+
+    $after = actingAs($this->admin)
+        ->getJson('/api/v1/admin/users?per_page=10')
+        ->json('data.*.id');
+
+    expect($after)->toBe($before);
+});
+
+it('never repeats a user across pages', function () {
+    $shared = now()->subDay();
+
+    User::factory()->count(12)->role('job_seeker')->create(['created_at' => $shared]);
+
+    $first = actingAs($this->admin)->getJson('/api/v1/admin/users?per_page=5&page=1')->json('data.*.id');
+    $second = actingAs($this->admin)->getJson('/api/v1/admin/users?per_page=5&page=2')->json('data.*.id');
+    $third = actingAs($this->admin)->getJson('/api/v1/admin/users?per_page=5&page=3')->json('data.*.id');
+
+    $seen = array_merge($first, $second, $third);
+
+    // An unstable sort shows some users twice and hides others entirely.
+    expect($seen)->toHaveCount(count(array_unique($seen)));
+});

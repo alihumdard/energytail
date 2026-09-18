@@ -65,6 +65,18 @@ class UserService
                 $user->email_verified_at = null;
             }
 
+            /*
+             * Applied after the email check above, so an administrator who
+             * corrects an address and confirms it in one edit gets the
+             * result they asked for rather than having it reset underneath
+             * them.
+             */
+            if (array_key_exists('email_verified', $data)) {
+                $user->email_verified_at = $data['email_verified']
+                    ? ($user->email_verified_at ?? now())
+                    : null;
+            }
+
             $user->save();
 
             if (isset($data['role'])) {

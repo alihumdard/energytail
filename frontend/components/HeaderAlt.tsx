@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Menu, X } from "lucide-react";
 import Logo from "./Logo";
+import HeaderAuthControls from "./HeaderAuthControls";
 
 export default function HeaderAlt() {
   const [open, setOpen] = useState(false);
@@ -18,23 +19,12 @@ export default function HeaderAlt() {
           <Link href="/jobs" className="hover:text-blue-600">Jobs</Link>
           <Link href="/companies" className="hover:text-blue-600">Companies</Link>
           <Link href="/articles" className="hover:text-blue-600">Articles</Link>
-          <Link href="/employer-dashboard" className="flex items-center gap-1 hover:text-blue-600">
+          <Link href="/register?role=employer" className="flex items-center gap-1 hover:text-blue-600">
             For Employers <ChevronDown className="w-3.5 h-3.5" />
           </Link>
         </nav>
         <div className="flex items-center gap-3 shrink-0">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-slate-700 border border-slate-200 rounded-md px-4 py-2 hover:border-blue-400 hover:text-blue-600"
-          >
-            Login
-          </Link>
-          <Link
-            href="/register"
-            className="hidden sm:inline-block text-sm font-medium text-white bg-blue-600 rounded-md px-4 py-2 hover:bg-blue-700"
-          >
-            Register
-          </Link>
+          <HeaderAuthControls variant="outlined" />
           <button
             onClick={() => setOpen(!open)}
             className="md:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-md"
@@ -57,12 +47,12 @@ export default function HeaderAlt() {
             <Link href="/articles" onClick={() => setOpen(false)} className="py-3 border-b border-slate-50 text-sm font-medium text-slate-600 hover:text-blue-600">
               Articles
             </Link>
-            <Link href="/employer-dashboard" onClick={() => setOpen(false)} className="py-3 border-b border-slate-50 text-sm font-medium text-slate-600 hover:text-blue-600">
+            <Link href="/register?role=employer" onClick={() => setOpen(false)} className="py-3 border-b border-slate-50 text-sm font-medium text-slate-600 hover:text-blue-600">
               For Employers
             </Link>
-            <Link href="/register" onClick={() => setOpen(false)} className="mt-3 text-center text-sm font-medium text-white bg-blue-600 rounded-md px-4 py-2.5">
-              Register
-            </Link>
+            <div className="mt-3 flex flex-col gap-2">
+              <HeaderAuthControls variant="outlined" layout="stack" onNavigate={() => setOpen(false)} />
+            </div>
           </nav>
         </div>
       )}

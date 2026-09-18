@@ -8,11 +8,27 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
+ * A reader's comment on an article.
+ *
+ * @property int $id
+ * @property int $article_id
+ * @property int|null $parent_id Set on replies; the thread is one level deep.
+ * @property int|null $user_id
  * @property User|null $user Null for guest comments, where guest_name is used.
  * @property string|null $guest_name
+ * @property string|null $guest_email
+ * @property string $body
  * @property string $status
+ * @property string|null $ip_address
+ * @property int $reports_count
+ * @property int|null $moderated_by
+ * @property Carbon|null $moderated_at
+ * @property Carbon|null $created_at
+ * @property Comment|null $parent
+ * @property Article|null $article
  */
 class Comment extends Model
 {

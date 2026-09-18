@@ -60,7 +60,11 @@ class AuditLogController extends Controller
         }
 
         // Newest first: an audit screen is read from the most recent event.
-        $logs = $query->latest()
+        // latest() alone is not a total order: several events can share a
+        // created_at to the second, and rows that compare equal come back in
+        // whatever order Postgres finds them, so paging could repeat or skip
+        // entries. The id breaks the tie and matches the newest-first intent.
+        $logs = $query->latest()->orderBy('id', 'desc')
             ->paginate(min(100, max(1, $request->integer('per_page', 20))));
 
         return response()->json([

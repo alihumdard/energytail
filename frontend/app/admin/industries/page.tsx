@@ -9,8 +9,37 @@ export default function IndustriesPage() {
       navKey="industries"
       title="Industries"
       noun="industries"
+      singular="Industry"
       api={adminTaxonomy.industries}
-      statLabels={{ total: "Total Industries", active: "Active", inactive: "Inactive", jobs: "Total Jobs" }}
+      fields={[
+        {
+          name: "name",
+          label: "Industry Name",
+          required: true,
+          placeholder: "e.g. Offshore Wind",
+        },
+        {
+          name: "description",
+          label: "Description",
+          type: "textarea",
+          nullable: true,
+        },
+        {
+          name: "emoji",
+          label: "Emoji",
+          hint: "A single emoji shown beside the name.",
+          nullable: true,
+        },
+        { name: "color", label: "Colour", type: "color", nullable: true },
+        { name: "sort_order", label: "Sort Order", type: "number" },
+        { name: "is_active", label: "Active", type: "checkbox" },
+      ]}
+      statLabels={{
+        total: "Total Industries",
+        active: "Active",
+        inactive: "Inactive",
+        jobs: "Total Jobs",
+      }}
       columns={[{ header: "Slug", render: (i) => i.slug }]}
       tips={[
         "Set the order to control how industries appear on the frontend.",

@@ -1,470 +1,359 @@
 "use client";
 
-import { useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import Shell from "@/components/admin/Shell";
-import { Badge, PageHeader } from "@/components/admin/ShellUI";
-import { jobDetail } from "@/data/adminMockData";
 import {
   ArrowLeft,
-  Pencil,
-  ChevronDown,
-  Eye,
-  Share2,
-  Copy,
-  Briefcase,
-  DollarSign,
-  CalendarClock,
-  BarChart3,
-  Flame,
-  MapPin,
-  Clock,
-  Hash,
   Building2,
-  Users2,
-  Globe,
-  MapPinned,
-  BadgeCheck,
-  Plus,
-  MessageCircle,
-  Mail,
-  Lock,
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  Loader2,
+  MapPin,
+  MousePointerClick,
+  Star,
+  XCircle,
 } from "lucide-react";
+import AdminShell from "@/components/admin/AdminShell";
+import { ApiError } from "@/lib/api/client";
+import { adminJobs } from "@/lib/api/endpoints";
+import type { AdminJob } from "@/lib/api/types";
 
-function LinkedInIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z" />
-    </svg>
-  );
+const STATUS_STYLE: Record<string, string> = {
+  published: "bg-emerald-50 text-emerald-700",
+  draft: "bg-slate-100 text-slate-600",
+  pending_review: "bg-blue-50 text-blue-700",
+  expired: "bg-orange-50 text-orange-700",
+  closed: "bg-red-50 text-red-700",
+};
+
+function humanise(value: string | null): string {
+  if (!value) return "—";
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function XTwitterIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.67l7.73-8.84L1.25 2.25h6.83l4.71 6.23 5.45-6.23zm-1.16 17.52h1.83L7.08 4.13H5.12l11.96 15.64z" />
-    </svg>
-  );
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
-function FacebookIcon() {
+/**
+ * One job, for moderation.
+ *
+ * The list page carries the same actions, but a moderator deciding whether to
+ * pull a listing needs to read it first rather than judge it by its title.
+ */
+export default function AdminJobDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+
+  const [job, setJob] = useState<AdminJob | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    /*
+     * There is no admin job detail endpoint, so the row comes from the list
+     * filtered to this id. Building a second endpoint that returns what the
+     * list already returns would be two sources of truth for one shape.
+     */
+    adminJobs
+      .list({ per_page: 100 })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const match = data.find((j) => j.id === Number(id));
+        if (match) setJob(match);
+        else setLoadError("This job could not be found.");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof ApiError ? err.detail : "Could not load the job.",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  async function run(work: () => Promise<{ data: AdminJob }>) {
+    setBusy(true);
+    setActionError(null);
+
+    try {
+      const { data } = await work();
+      setJob(data);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.detail : "Could not update the job.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.09 10.13 24v-8.44H7.08v-3.49h3.05v-2.66c0-3.02 1.79-4.7 4.53-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.89v2.26h3.32l-.53 3.49h-2.79V24C19.61 23.09 24 18.1 24 12.07z" />
-    </svg>
-  );
-}
+    <AdminShell active="jobs">
+      <Link
+        href="/admin/jobs"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        All jobs
+      </Link>
 
-const tabs = [
-  "Overview",
-  "Description",
-  "Requirements",
-  "Benefits",
-  "Company",
-  "Analytics",
-  "Activity Log",
-];
-
-export default function JobDetailsPage() {
-  const [activeTab, setActiveTab] = useState("Overview");
-  const job = jobDetail;
-
-  return (
-    <Shell>
-      <PageHeader
-        title="Job Details"
-        breadcrumb={[
-          { label: "Dashboard", href: "/admin/dashboard" },
-          { label: "Jobs", href: "/admin/jobs" },
-          { label: job.title },
-        ]}
-        actions={
-          <>
-            <Link
-              href="/admin/jobs"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50"
+      {loadError ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+          <p className="text-slate-500">{loadError}</p>
+        </div>
+      ) : !job ? (
+        <div className="flex items-center gap-2 py-16 text-sm text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading the job…
+        </div>
+      ) : (
+        <>
+          {actionError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
-              <ArrowLeft size={15} />
-              Back to Jobs
-            </Link>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50">
-              <Pencil size={15} />
-              Edit Job
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-[13px] font-medium text-white hover:bg-brand-700">
-              Actions
-              <ChevronDown size={14} />
-            </button>
-          </>
-        }
-      />
-
-      {/* Job header card */}
-      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-5 shadow-card sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-            <Flame size={28} className="text-brand-600" fill="currentColor" strokeWidth={0} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[19px] font-bold text-gray-900">{job.title}</h2>
-              <Badge color="green" dot>
-                {job.status}
-              </Badge>
+              {actionError}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-500">
-              <span className="flex items-center gap-1.5 font-medium text-gray-700">
-                <Flame size={13} className="text-brand-500" />
-                {job.company}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <MapPin size={13} />
-                {job.location}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Briefcase size={13} />
-                {job.type}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Clock size={13} />
-                Posted on {job.posted}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Hash size={13} />
-                Job ID: {job.id}
-              </span>
-            </div>
+          )}
 
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <InfoChip icon={BarChart3} label="Experience" value={job.experience} color="text-green-600 bg-green-50" />
-              <InfoChip icon={DollarSign} label="Salary" value={job.salary} sub={job.salaryPeriod} color="text-purple-600 bg-purple-50" />
-              <InfoChip icon={Briefcase} label="Job Type" value={job.type} color="text-blue-600 bg-blue-50" />
-              <InfoChip
-                icon={CalendarClock}
-                label="Deadline"
-                value={job.deadline}
-                sub={job.deadlineNote}
-                subColor="text-red-500"
-                color="text-red-600 bg-red-50"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-          <TextBtn icon={Eye} label="View Job" />
-          <TextBtn icon={Share2} label="Share Job" />
-          <TextBtn icon={Copy} label="Duplicate" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
-        <div className="min-w-0">
-          {/* Tabs */}
-          <div className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white px-2 shadow-card">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap border-b-2 px-3.5 py-3 text-[13.5px] font-medium transition ${
-                  activeTab === tab
-                    ? "border-brand-600 text-brand-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px]">
-            <div className="space-y-5">
-              <Panel title="Job Description">
-                <p className="text-[13.5px] leading-relaxed text-gray-600">
-                  {job.description}
-                </p>
-                <h4 className="mb-2 mt-5 text-[14px] font-semibold text-gray-900">
-                  Key Responsibilities
-                </h4>
-                <ul className="space-y-2">
-                  {job.responsibilities.map((r) => (
-                    <li key={r} className="flex gap-2.5 text-[13.5px] text-gray-600">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-
-              <Panel title="Requirements">
-                <ul className="space-y-2">
-                  {job.requirements.map((r) => (
-                    <li key={r} className="flex gap-2.5 text-[13.5px] text-gray-600">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-            </div>
-
-            <div className="space-y-5">
-              <Panel title="Company Information">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                    <Flame size={16} fill="currentColor" strokeWidth={0} />
-                  </span>
-                  <div>
-                    <p className="flex items-center gap-1 text-[13.5px] font-semibold text-gray-900">
-                      {job.company}
+          <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+            <div className="min-w-0 space-y-6">
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold text-slate-900">
+                      {job.title}
+                      {job.is_featured && (
+                        <Star
+                          size={18}
+                          className="fill-amber-400 text-amber-400"
+                        />
+                      )}
+                    </h1>
+                    <p className="mt-1 font-mono text-xs text-slate-400">
+                      {job.reference}
                     </p>
-                    <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-green-600">
-                      <BadgeCheck size={12} />
-                      Verified
-                    </span>
+                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      STATUS_STYLE[job.status] ?? "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {humanise(job.status)}
+                  </span>
+                </div>
+
+                <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+                  {[
+                    ["Company", job.company?.name ?? "—"],
+                    ["Category", job.category?.name ?? "—"],
+                    ["Employment type", humanise(job.employment_type)],
+                    [
+                      "Location",
+                      job.is_remote
+                        ? "Remote"
+                        : (job.location_label ??
+                          [job.city?.name, job.country?.name]
+                            .filter(Boolean)
+                            .join(", ") ??
+                          "—"),
+                    ],
+                    ["Published", formatDate(job.published_at)],
+                    ["Closes", formatDate(job.deadline_at)],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-xs text-slate-400">{label}</dt>
+                      <dd className="mt-0.5 text-sm text-slate-700">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <h2 className="mb-4 font-semibold text-slate-900">
+                  Performance
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <Eye size={13} /> Views
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {job.views_count.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <MousePointerClick size={13} /> Apply clicks
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {job.apply_clicks_count.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Click-through</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {job.views_count > 0
+                        ? `${((job.apply_clicks_count / job.views_count) * 100).toFixed(1)}%`
+                        : "—"}
+                    </p>
                   </div>
                 </div>
-                <dl className="space-y-2.5 text-[13px]">
-                  <MetaRow icon={Building2} label="Industry" value={job.companyInfo.industry} />
-                  <MetaRow icon={Users2} label="Company Size" value={job.companyInfo.size} />
-                  <MetaRow
-                    icon={Globe}
-                    label="Website"
-                    value={
-                      <span className="text-brand-600">{job.companyInfo.website}</span>
-                    }
-                  />
-                  <MetaRow icon={MapPinned} label="Location" value={job.companyInfo.location} />
-                </dl>
-                <button className="mt-4 w-full rounded-lg border border-gray-200 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50">
-                  View Company Profile
-                </button>
-              </Panel>
+              </div>
+            </div>
 
-              <Panel title="Job Tags / Skills">
-                <div className="flex flex-wrap gap-2">
-                  {job.tags.map((t) => (
-                    <Badge key={t} color="gray">
-                      {t}
-                    </Badge>
-                  ))}
-                  <button className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2.5 py-1 text-[12px] font-medium text-gray-500 hover:bg-gray-50">
-                    <Plus size={12} />
-                    Add Tag
+            {/* Moderation */}
+            <aside className="min-w-0 space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="mb-3 font-semibold text-slate-900">
+                  Moderation
+                </h2>
+
+                <div className="space-y-2">
+                  {job.status !== "published" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => run(() => adminJobs.approve(job.id))}
+                      className="flex w-full items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <CheckCircle2 size={15} /> Approve &amp; publish
+                    </button>
+                  )}
+
+                  {job.status !== "closed" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setRejecting(true)}
+                      className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <XCircle size={15} /> Remove from board
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => adminJobs.toggleFeatured(job.id))}
+                    className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Star
+                      size={15}
+                      className={
+                        job.is_featured ? "fill-amber-400 text-amber-400" : ""
+                      }
+                    />
+                    {job.is_featured ? "Remove feature" : "Feature this job"}
                   </button>
                 </div>
-              </Panel>
 
-              <Panel title="Share this Job">
-                <div className="flex flex-wrap gap-2">
-                  <SocialBtn color="bg-[#0A66C2]"><LinkedInIcon /></SocialBtn>
-                  <SocialBtn color="bg-[#1DA1F2]"><XTwitterIcon /></SocialBtn>
-                  <SocialBtn color="bg-[#1877F2]"><FacebookIcon /></SocialBtn>
-                  <SocialBtn color="bg-[#25D366]"><MessageCircle size={16} /></SocialBtn>
-                  <SocialBtn color="bg-gray-500"><Mail size={16} /></SocialBtn>
+                {busy && (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Working…
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="mb-3 font-semibold text-slate-900">Links</h2>
+                <div className="space-y-2 text-sm">
+                  <Link
+                    href={`/jobs/${job.slug}`}
+                    target="_blank"
+                    className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                  >
+                    <ExternalLink size={14} /> Public job page
+                  </Link>
+                  {job.company && (
+                    <Link
+                      href={`/companies/${job.company.slug}`}
+                      target="_blank"
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                    >
+                      <Building2 size={14} /> Company page
+                    </Link>
+                  )}
+                  <Link
+                    href={`/employer/jobs/${job.id}/edit`}
+                    className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                  >
+                    <MapPin size={14} /> Edit this listing
+                  </Link>
                 </div>
-              </Panel>
+              </div>
+            </aside>
+          </div>
+        </>
+      )}
+
+      {/* Reject dialog — the reason lands in the audit log. */}
+      {rejecting && job && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              Remove from the board?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              The listing keeps its URL and view history — the employer paid for
+              the placement. The reason is written to the audit log.
+            </p>
+
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Why is this listing being pulled?"
+              className="mt-4 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejecting(false);
+                  setReason("");
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reason.trim() === ""}
+                onClick={() => {
+                  const text = reason;
+                  setRejecting(false);
+                  setReason("");
+                  run(() => adminJobs.reject(job.id, text));
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                Remove
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Right sidebar */}
-        <div className="space-y-5">
-          <Panel title="Job Status">
-            <dl className="space-y-3 text-[13px]">
-              <div className="flex items-center justify-between">
-                <dt className="text-gray-500">Status</dt>
-                <dd>
-                  <Badge color="green">{job.status}</Badge>
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-gray-500">Visibility</dt>
-                <dd>
-                  <Badge color="blue">Public</Badge>
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-gray-500">Featured</dt>
-                <dd>
-                  <Badge color="green">Yes</Badge>
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-gray-500">Urgent</dt>
-                <dd>
-                  <Badge color="gray">No</Badge>
-                </dd>
-              </div>
-            </dl>
-          </Panel>
-
-          <Panel title="Job Performance">
-            <dl className="space-y-3 text-[13px]">
-              <PerfRow icon={Eye} label="Total Views" value={job.performance.totalViews} />
-              <PerfRow icon={BarChart3} label="Apply Clicks" value={job.performance.applyClicks} />
-              <PerfRow icon={Briefcase} label="Applications (External)" value={job.performance.applicationsExternal} />
-              <PerfRow
-                icon={CalendarClock}
-                label="Views This Week"
-                value={job.performance.viewsThisWeek}
-                change={job.performance.viewsThisWeekChange}
-              />
-              <PerfRow
-                icon={CalendarClock}
-                label="Apply Clicks This Week"
-                value={job.performance.applyClicksThisWeek}
-                change={job.performance.applyClicksThisWeekChange}
-              />
-            </dl>
-          </Panel>
-
-          <Panel title="Important Dates">
-            <dl className="space-y-3 text-[13px]">
-              <div className="flex items-start justify-between">
-                <dt className="flex items-center gap-1.5 text-gray-500">
-                  <CalendarClock size={13} />
-                  Posted Date
-                </dt>
-                <dd className="text-right font-medium text-gray-800">{job.dates.posted}</dd>
-              </div>
-              <div className="flex items-start justify-between">
-                <dt className="flex items-center gap-1.5 text-gray-500">
-                  <CalendarClock size={13} />
-                  Deadline
-                </dt>
-                <dd className="text-right">
-                  <p className="font-medium text-gray-800">{job.dates.deadline}</p>
-                  <p className="text-[11px] text-red-500">{job.dates.deadlineNote}</p>
-                </dd>
-              </div>
-              <div className="flex items-start justify-between">
-                <dt className="flex items-center gap-1.5 text-gray-500">
-                  <CalendarClock size={13} />
-                  Last Date to Apply
-                </dt>
-                <dd className="text-right font-medium text-gray-800">{job.dates.lastDateToApply}</dd>
-              </div>
-              <div className="flex items-start justify-between">
-                <dt className="flex items-center gap-1.5 text-gray-500">
-                  <CalendarClock size={13} />
-                  Last Updated
-                </dt>
-                <dd className="text-right font-medium text-gray-800">{job.dates.lastUpdated}</dd>
-              </div>
-            </dl>
-          </Panel>
-
-          <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 py-2.5 text-[13.5px] font-medium text-red-600 hover:bg-red-50">
-            <Lock size={14} />
-            Close This Job
-          </button>
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-card">
-      <h3 className="mb-3.5 text-[14.5px] font-semibold text-gray-900">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function InfoChip({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  subColor = "text-gray-400",
-  color,
-}: {
-  icon: typeof Briefcase;
-  label: string;
-  value: string;
-  sub?: string;
-  subColor?: string;
-  color: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-gray-100 p-2.5">
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${color}`}>
-        <Icon size={15} />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-[11.5px] text-gray-400">{label}</p>
-        <p className="truncate text-[12.5px] font-semibold text-gray-800">{value}</p>
-        {sub && <p className={`truncate text-[11px] ${subColor}`}>{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-function TextBtn({ icon: Icon, label }: { icon: typeof Eye; label: string }) {
-  return (
-    <button className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] font-medium text-gray-600 hover:bg-gray-50">
-      <Icon size={13} />
-      {label}
-    </button>
-  );
-}
-
-function MetaRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Building2;
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="flex items-center gap-1.5 text-gray-400">
-        <Icon size={13} />
-        {label}
-      </span>
-      <span className="font-medium text-gray-800">{value}</span>
-    </div>
-  );
-}
-
-function PerfRow({
-  icon: Icon,
-  label,
-  value,
-  change,
-}: {
-  icon: typeof Eye;
-  label: string;
-  value: string;
-  change?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="flex items-center gap-1.5 text-gray-500">
-        <Icon size={13} />
-        {label}
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="font-semibold text-gray-800">{value}</span>
-        {change && (
-          <span className="text-[11px] font-medium text-green-600">↑ {change}</span>
-        )}
-      </span>
-    </div>
-  );
-}
-
-function SocialBtn({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <button
-      className={`flex h-9 w-9 items-center justify-center rounded-lg text-white ${color} hover:opacity-90`}
-    >
-      {children}
-    </button>
+      )}
+    </AdminShell>
   );
 }

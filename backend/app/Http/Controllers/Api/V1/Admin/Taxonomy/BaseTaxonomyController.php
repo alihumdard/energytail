@@ -59,6 +59,58 @@ abstract class BaseTaxonomyController extends Controller
         return [];
     }
 
+    /**
+     * Relations counted on every read, exposed to transform() as
+     * "<relation>_count".
+     *
+     * Defaults to the blocking relations because those are exactly what the
+     * screens show — "4 cities" is both the usage figure in the table and the
+     * reason a delete is refused, so counting them keeps the two consistent.
+     *
+     * @return array<int, string>
+     */
+    protected function countableRelations(): array
+    {
+        return $this->blockingRelations();
+    }
+
+    /**
+     * Base query with counts applied, shared by every read path so a record
+     * carries the same shape whether it came from the list or from a write.
+     *
+     * Typed as Builder<Model> rather than Builder<TModel>: the static
+     * model()::query() call cannot carry the template through, and every
+     * consumer here passes the result to transform(), which accepts Model.
+     *
+     * @return Builder<Model>
+     */
+    protected function baseQuery(): Builder
+    {
+        $query = $this->model()::query()
+            ->with($this->with())
+            ->withCount($this->countableRelations());
+
+        $this->decorate($query);
+
+        return $query;
+    }
+
+    /**
+     * Hook for a subclass to add selects or joins the shared query cannot
+     * know about — tags replace a stale counter column with a live count
+     * this way.
+     *
+     * Modifies the query in place rather than returning it: Builder's model
+     * template is invariant, so a subclass returning Builder<Tag> could never
+     * satisfy a parent declaring Builder<Model>.
+     *
+     * @param  Builder<Model>  $query
+     */
+    protected function decorate(Builder $query): void
+    {
+        // Nothing by default.
+    }
+
     abstract protected function storeRules(Request $request): array;
 
     /** @param TModel $record */
@@ -137,7 +189,7 @@ abstract class BaseTaxonomyController extends Controller
     {
         $this->authorizeModule('view');
 
-        $query = $this->model()::query()->with($this->with());
+        $query = $this->baseQuery();
 
         $this->applySearch($query, $request->string('search')->toString());
         $this->applyActiveFilter($query, $request);
@@ -163,7 +215,7 @@ abstract class BaseTaxonomyController extends Controller
     {
         $this->authorizeModule('view');
 
-        $record = $this->model()::query()->with($this->with())->findOrFail($id);
+        $record = $this->baseQuery()->findOrFail($id);
 
         return response()->json(['data' => $this->transform($record)]);
     }
@@ -179,7 +231,9 @@ abstract class BaseTaxonomyController extends Controller
 
         return response()->json([
             'message' => 'Created.',
-            'data' => $this->transform($record->fresh($this->with())),
+            // Re-read through baseQuery so the reply carries the same counts
+            // the list does; without them the new row renders blank.
+            'data' => $this->transform($this->baseQuery()->findOrFail($record->getKey())),
         ], 201);
     }
 
@@ -196,7 +250,7 @@ abstract class BaseTaxonomyController extends Controller
 
         return response()->json([
             'message' => 'Updated.',
-            'data' => $this->transform($record->fresh($this->with())),
+            'data' => $this->transform($this->baseQuery()->findOrFail($id)),
         ]);
     }
 
@@ -225,7 +279,7 @@ abstract class BaseTaxonomyController extends Controller
 
         return response()->json([
             'message' => $isActive ? 'Activated.' : 'Deactivated.',
-            'data' => $this->transform($record),
+            'data' => $this->transform($this->baseQuery()->findOrFail($id)),
         ]);
     }
 
@@ -278,7 +332,7 @@ abstract class BaseTaxonomyController extends Controller
         $this->authorizeModule('export');
 
         $model = $this->model();
-        $rows = $model::query()->with($this->with())->get();
+        $rows = $this->baseQuery()->get();
         $filename = str($model)->afterLast('\\')->plural()->snake()->toString();
 
         return response()->streamDownload(function () use ($rows) {
@@ -359,13 +413,20 @@ abstract class BaseTaxonomyController extends Controller
 
         if (in_array($sort, $this->sortable(), true)) {
             $query->orderBy($sort, $direction);
-
-            return;
+        } else {
+            foreach ($this->defaultOrder() as [$column, $columnDirection]) {
+                $query->orderBy($column, $columnDirection);
+            }
         }
 
-        foreach ($this->defaultOrder() as [$column, $columnDirection]) {
-            $query->orderBy($column, $columnDirection);
-        }
+        /*
+         * Tiebreaker, and not optional. Rows sharing a sort_order — which the
+         * seeded taxonomies do — have no defined order in Postgres at all: it
+         * returns them in heap order, and an UPDATE moves a row to the end of
+         * the heap. Without this, editing one record reshuffles the page it
+         * was on, and paging repeats some rows while skipping others.
+         */
+        $query->orderBy('id', 'asc');
     }
 
     /**

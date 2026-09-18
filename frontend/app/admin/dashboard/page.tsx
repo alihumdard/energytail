@@ -1,297 +1,421 @@
 "use client";
 
-import AdminSidebar from "@/components/admin/AdminSidebar";
-import AdminTopbar from "@/components/admin/AdminTopbar";
+import Link from "next/link";
 import {
-  Users,
-  Building2,
+  ArrowRight,
   Briefcase,
+  Building2,
+  Eye,
   FileText,
-  ClipboardCheck,
-  Calendar,
-  ChevronRight,
-  RefreshCw,
+  Loader2,
+  MousePointerClick,
+  Users,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import AdminShell from "@/components/admin/AdminShell";
+import { adminDashboard } from "@/lib/api/endpoints";
+import { useApiResource } from "@/lib/hooks/useApiResource";
+import RequireRole from "@/components/auth/RequireRole";
 
-const stats = [
-  { label: "Total Users", value: "2,846", change: "+18.6%", icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-  { label: "Companies", value: "1,253", change: "+14.2%", icon: Building2, color: "text-purple-600", bg: "bg-purple-50" },
-  { label: "Active Jobs", value: "3,489", change: "+12.8%", icon: Briefcase, color: "text-emerald-600", bg: "bg-emerald-50" },
-  { label: "Articles", value: "732", change: "+9.7%", icon: FileText, color: "text-orange-600", bg: "bg-orange-50" },
-  { label: "Applications", value: "8,592", change: "+15.3%", icon: ClipboardCheck, color: "text-blue-600", bg: "bg-blue-50" },
-];
+function timeAgo(value: string | null): string {
+  if (!value) return "";
 
-const trendData = [
-  { day: "May 12", Users: 950, Jobs: 350, Applications: 780 },
-  { day: "May 13", Users: 1100, Jobs: 420, Applications: 950 },
-  { day: "May 14", Users: 1000, Jobs: 500, Applications: 900 },
-  { day: "May 15", Users: 1550, Jobs: 460, Applications: 1350 },
-  { day: "May 16", Users: 1400, Jobs: 650, Applications: 1550 },
-  { day: "May 17", Users: 1750, Jobs: 700, Applications: 1400 },
-  { day: "May 18", Users: 1900, Jobs: 780, Applications: 1720 },
-];
+  const seconds = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
 
-const registrations = [
-  { name: "Sarah Johnson", email: "sarah.j@example.com", role: "Job Seeker", time: "2 minutes ago" },
-  { name: "PetroEnergy Solutions", email: "hr@petroenergy.com", role: "Employer", time: "15 minutes ago" },
-  { name: "Michael Brown", email: "michael.b@example.com", role: "Job Seeker", time: "1 hour ago" },
-  { name: "Global Oil Services", email: "careers@gos.com", role: "Employer", time: "2 hours ago" },
-  { name: "Emily Davis", email: "emily.d@example.com", role: "Job Seeker", time: "3 hours ago" },
-];
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)} h ago`;
+  return `${Math.floor(seconds / 86_400)} d ago`;
+}
 
-const roleBadge: Record<string, string> = {
-  "Job Seeker": "bg-emerald-50 text-emerald-600",
-  Employer: "bg-blue-50 text-blue-600",
+const ACTION_TONE: Record<string, string> = {
+  approved: "bg-emerald-50 text-emerald-600",
+  rejected: "bg-red-50 text-red-600",
+  suspended: "bg-red-50 text-red-600",
+  deleted: "bg-red-50 text-red-600",
+  created: "bg-blue-50 text-blue-600",
+  updated: "bg-slate-100 text-slate-600",
 };
 
-const systemStatus = [
-  { label: "Website", status: "Online" },
-  { label: "Database", status: "Healthy" },
-  { label: "File Storage", status: "Healthy" },
-  { label: "Email Service", status: "Healthy" },
-  { label: "Queue", status: "Healthy" },
-];
-
-const jobCategories = [
-  { label: "Engineering", value: 1245, pct: "35.7%", color: "#2563eb" },
-  { label: "Drilling", value: 842, pct: "24.1%", color: "#7c3aed" },
-  { label: "Operations", value: 658, pct: "18.9%", color: "#059669" },
-  { label: "HSE / Safety", value: 401, pct: "11.5%", color: "#f59e0b" },
-  { label: "R&D / Technical", value: 343, pct: "9.8%", color: "#e11d48" },
-];
-
-const topCountries = [
-  { label: "United States", value: 1256, max: 1256 },
-  { label: "UAE", value: 842, max: 1256 },
-  { label: "Saudi Arabia", value: 523, max: 1256 },
-  { label: "Canada", value: 312, max: 1256 },
-  { label: "Qatar", value: 278, max: 1256 },
-];
-
-const recentActivities = [
-  { text: "New user registered: PetroEnergy Solutions", time: "15 minutes ago" },
-  { text: "Job published: Senior Drilling Engineer", time: "1 hour ago" },
-  { text: "Article published: Future of Hydrogen Energy", time: "2 hours ago" },
-  { text: "Company approved: Global Oil Services", time: "3 hours ago" },
-  { text: "Database backup completed successfully", time: "5 hours ago" },
-];
-
 export default function AdminDashboardPage() {
+  const { data, loading, error } = useApiResource(
+    () => adminDashboard.get(),
+    [],
+  );
+
+  const d = data?.data;
+  const totals = d?.totals;
+  const moderation = d?.moderation;
+
+  const cards = [
+    {
+      label: "Users",
+      value: totals?.users,
+      icon: Users,
+      tone: "bg-blue-50 text-blue-600",
+      href: "/admin/users",
+      sub: d ? `${d.usersByRole.length} roles` : null,
+    },
+    {
+      label: "Companies",
+      value: totals?.companies,
+      icon: Building2,
+      tone: "bg-violet-50 text-violet-600",
+      href: "/admin/companies",
+      sub: moderation ? `${moderation.unverified_companies} unverified` : null,
+    },
+    {
+      label: "Jobs",
+      value: totals?.jobs,
+      icon: Briefcase,
+      tone: "bg-emerald-50 text-emerald-600",
+      href: "/admin/jobs",
+      sub: totals ? `${totals.published_jobs} published` : null,
+    },
+    {
+      label: "Articles",
+      value: totals?.articles,
+      icon: FileText,
+      tone: "bg-orange-50 text-orange-600",
+      href: "/admin/articles",
+      sub: totals ? `${totals.published_articles} published` : null,
+    },
+  ];
+
+  /*
+   * Views and apply clicks, never "applications".
+   *
+   * Candidates apply on the employer's own site through apply_url/apply_email
+   * — there is no applications table to count. The mock this replaced showed
+   * "8,592 Applications", a figure the platform could never produce.
+   */
+  const engagement = [
+    { label: "Job Views", value: totals?.job_views, icon: Eye },
+    {
+      label: "Apply Clicks",
+      value: totals?.apply_clicks,
+      icon: MousePointerClick,
+    },
+    { label: "Article Views", value: totals?.article_views, icon: FileText },
+  ];
+
+  // Only what actually needs attention gets a row, so an empty queue reads as
+  // "nothing to do" rather than a wall of zeroes.
+  const queue = [
+    {
+      label: "Articles awaiting review",
+      count: moderation?.articles_pending ?? 0,
+      href: "/admin/articles",
+    },
+    {
+      label: "Jobs awaiting review",
+      count: moderation?.jobs_pending ?? 0,
+      href: "/admin/jobs",
+    },
+    {
+      label: "Companies awaiting approval",
+      count: moderation?.companies_pending ?? 0,
+      href: "/admin/companies",
+    },
+    {
+      label: "Suspended users",
+      count: moderation?.suspended_users ?? 0,
+      href: "/admin/users",
+    },
+  ].filter((row) => row.count > 0);
+
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <AdminSidebar active="dashboard" />
+    <RequireRole permission="users.view">
+      <AdminShell active="dashboard">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Everything on the platform, counted live.
+          </p>
+        </div>
 
-      <div className="flex-1 min-w-0 flex flex-col">
-        <AdminTopbar variant="dark" />
-
-        <main className="flex-1 p-4 sm:p-6 space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Welcome back, Super Admin! 👋</h1>
-              <p className="text-sm text-slate-500 mt-1">Here&apos;s what&apos;s happening on Energy Tail today.</p>
-            </div>
-            <button className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              May 12 – May 18, 2025
-              <ChevronRight className="w-3.5 h-3.5 rotate-90 text-slate-400" />
-            </button>
+        {error && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            Could not load the dashboard. {error.detail}
           </div>
+        )}
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {stats.map((s) => (
-              <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-5">
-                <div className="flex items-center justify-between">
-                  <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}>
-                    <s.icon className={`w-5 h-5 ${s.color}`} />
-                  </div>
+        {/* Totals */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((c) => (
+            <Link
+              key={c.label}
+              href={c.href}
+              className="rounded-xl border border-slate-200 bg-white p-5 transition hover:border-blue-300"
+            >
+              <div className="flex items-start justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-500">{c.label}</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">
+                    {c.value === undefined ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                    ) : (
+                      c.value.toLocaleString()
+                    )}
+                  </p>
+                  {c.sub && (
+                    <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+                  )}
                 </div>
-                <div className="mt-3 text-sm text-slate-500">{s.label}</div>
-                <div className="text-2xl font-bold text-slate-900 mt-0.5">{s.value}</div>
-                <div className="text-xs text-emerald-600 font-medium mt-1">{s.change} vs last week</div>
+                <span
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${c.tone}`}
+                >
+                  <c.icon size={20} />
+                </span>
               </div>
-            ))}
-          </div>
+            </Link>
+          ))}
+        </div>
 
-          {/* Chart + panels row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-slate-900">Overview Analytics</h2>
-                <select className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600">
-                  <option>Last 7 Days</option>
-                  <option>Last 30 Days</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-5 text-xs text-slate-500 mb-2">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-600" /> Users</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Jobs</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> Applications</span>
-              </div>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="Users" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Applications" stroke="#fb923c" strokeWidth={2.5} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Jobs" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+        <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <div className="min-w-0 space-y-6">
+            {/* Engagement */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="font-semibold text-slate-900">Engagement</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Candidates apply on the employer&apos;s own site, so the board
+                measures views and click-throughs rather than applications.
+              </p>
 
-            <div className="bg-white rounded-2xl border border-slate-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-slate-900">Recent Registrations</h2>
-                <a href="/admin/users" className="text-xs text-blue-600 font-medium">View All</a>
-              </div>
-              <div className="space-y-4">
-                {registrations.map((r) => (
-                  <div key={r.email} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-100 shrink-0 flex items-center justify-center text-xs font-semibold text-slate-500">
-                      {r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-slate-800 truncate">{r.name}</div>
-                      <div className="text-xs text-slate-400 truncate">{r.email}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${roleBadge[r.role]}`}>{r.role}</span>
-                      <div className="text-[11px] text-slate-400 mt-1">{r.time}</div>
-                    </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                {engagement.map((e) => (
+                  <div key={e.label} className="rounded-lg bg-slate-50 p-4">
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <e.icon size={13} /> {e.label}
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {e.value === undefined ? "—" : e.value.toLocaleString()}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Bottom row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-slate-900">Top Job Categories</h2>
-                <a href="/admin/job-categories" className="text-xs text-blue-600 font-medium">View All</a>
+            {/* Jobs by category */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">
+                  Published Jobs by Category
+                </h2>
+                <Link
+                  href="/admin/job-categories"
+                  className="text-xs font-semibold text-blue-600"
+                >
+                  Manage
+                </Link>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="w-24 h-24 shrink-0 relative">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={jobCategories}
-                        dataKey="value"
-                        nameKey="label"
-                        innerRadius={26}
-                        outerRadius={44}
-                        paddingAngle={2}
-                        stroke="none"
-                      >
-                        {jobCategories.map((c) => (
-                          <Cell key={c.label} fill={c.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-sm font-bold text-slate-900">3,489</span>
-                    <span className="text-[10px] text-slate-400">Total Jobs</span>
-                  </div>
+
+              {!d ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                 </div>
-                <div className="flex-1 space-y-2">
-                  {jobCategories.map((c) => (
-                    <div key={c.label} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex items-center gap-1.5 text-slate-600 min-w-0">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
-                        <span className="truncate">{c.label}</span>
+              ) : d.jobsByCategory.length === 0 ? (
+                <p className="py-6 text-sm text-slate-500">
+                  No published jobs yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {d.jobsByCategory.map((c) => (
+                    <div
+                      key={c.label}
+                      className="flex items-center gap-3 text-sm"
+                    >
+                      <span className="w-48 shrink-0 truncate text-slate-600">
+                        {c.label}
                       </span>
-                      <span className="text-slate-500 font-medium shrink-0 whitespace-nowrap">
-                        {c.value.toLocaleString()} <span className="text-slate-400">({c.pct})</span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${c.pct}%`,
+                            backgroundColor: c.color,
+                          }}
+                        />
+                      </span>
+                      <span className="w-16 shrink-0 text-right text-xs text-slate-400">
+                        {c.value} ({c.pct}%)
                       </span>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-slate-900">Top Countries (Jobs)</h2>
-                <a href="/admin/countries" className="text-xs text-blue-600 font-medium">View All</a>
-              </div>
-              <div className="space-y-3.5">
-                {topCountries.map((c) => (
-                  <div key={c.label}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-slate-600">{c.label}</span>
-                      <span className="text-slate-500 font-medium">{c.value.toLocaleString()}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-blue-600"
-                        style={{ width: `${(c.value / c.max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Top countries */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-4 font-semibold text-slate-900">
+                Where the Jobs Are
+              </h2>
 
-            <div className="bg-white rounded-2xl border border-slate-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-slate-900">Recent System Activities</h2>
-                <a href="/admin/audit-logs" className="text-xs text-blue-600 font-medium">View All</a>
-              </div>
-              <div className="space-y-4">
-                {recentActivities.map((a, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                    <div>
-                      <div className="text-sm text-slate-700 leading-snug">{a.text}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{a.time}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* System status */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-slate-900">System Status</h2>
-              <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                <RefreshCw className="w-3.5 h-3.5" /> Last checked: 1 min ago
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-              {systemStatus.map((s) => (
-                <div key={s.label} className="flex items-center gap-2 text-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-slate-600">{s.label}</span>
-                  <span className="ml-auto text-xs text-emerald-600 font-medium">{s.status}</span>
+              {!d ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                 </div>
-              ))}
+              ) : d.topCountries.length === 0 ? (
+                <p className="py-6 text-sm text-slate-500">
+                  No published jobs yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {d.topCountries.map((c) => (
+                    <div
+                      key={c.code}
+                      className="flex items-center gap-3 text-sm"
+                    >
+                      <span className="w-40 shrink-0 truncate text-slate-600">
+                        {c.flag} {c.label}
+                      </span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span
+                          className="block h-full rounded-full bg-blue-500"
+                          style={{ width: `${(c.value / c.max) * 100}%` }}
+                        />
+                      </span>
+                      <span className="w-8 shrink-0 text-right text-xs text-slate-400">
+                        {c.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="text-center text-xs text-slate-400 pt-2">© 2025 Energy Tail. All rights reserved.</div>
-        </main>
-      </div>
-    </div>
+          {/* Right column */}
+          <div className="min-w-0 space-y-6">
+            {/* Needs attention */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-3 font-semibold text-slate-900">
+                Needs Attention
+              </h2>
+
+              {!d ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : queue.length === 0 ? (
+                <p className="py-4 text-sm text-slate-500">
+                  Nothing is waiting for review.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {queue.map((row) => (
+                    <Link
+                      key={row.label}
+                      href={row.href}
+                      className="flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-slate-50"
+                    >
+                      <span className="text-sm text-slate-700">
+                        {row.label}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="rounded-full bg-orange-500 px-2 py-0.5 text-xs font-bold text-white">
+                          {row.count}
+                        </span>
+                        <ArrowRight size={14} className="text-slate-300" />
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Users by role */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">Users by Role</h2>
+                <Link
+                  href="/admin/users"
+                  className="text-xs font-semibold text-blue-600"
+                >
+                  View all
+                </Link>
+              </div>
+
+              {!d ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {d.usersByRole.map((r) => (
+                    <div
+                      key={r.role}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="text-slate-600">{r.label}</span>
+                      <span className="font-semibold text-slate-900">
+                        {r.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent activity */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">
+                  Recent Activity
+                </h2>
+                <Link
+                  href="/admin/audit-logs"
+                  className="text-xs font-semibold text-blue-600"
+                >
+                  View all
+                </Link>
+              </div>
+
+              {!d ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : d.recentActivity.length === 0 ? (
+                <p className="py-4 text-sm text-slate-500">
+                  Nothing logged yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {d.recentActivity.map((a) => (
+                    <div key={a.id} className="flex items-start gap-2.5">
+                      <span
+                        className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                          ACTION_TONE[a.action ?? ""] ??
+                          "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {a.action ?? "—"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-slate-700">
+                          {a.description}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {a.user ?? "System"} · {timeAgo(a.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {loading && !d && (
+          <p className="mt-6 flex items-center gap-2 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading the dashboard…
+          </p>
+        )}
+      </AdminShell>
+    </RequireRole>
   );
 }

@@ -53,7 +53,10 @@ class Job extends Model
         'salary_min', 'salary_max', 'salary_currency', 'salary_period',
         'salary_is_hidden', 'apply_method', 'apply_url', 'apply_email',
         'status', 'is_featured', 'is_urgent', 'is_highlighted',
-        'published_at', 'deadline_at', 'meta_title', 'meta_description',
+        // closed_at belongs here with the other lifecycle timestamps: closing
+        // a job sets it, and reopening clears it. Left out, both writes were
+        // dropped silently and a closed listing carried no record of when.
+        'published_at', 'deadline_at', 'closed_at', 'meta_title', 'meta_description',
     ];
 
     protected function casts(): array
@@ -76,57 +79,68 @@ class Job extends Model
 
     // ------------------------------------------------------- relationships
 
+    /** @return BelongsTo<Company, $this> */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function postedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by');
     }
 
+    /** @return BelongsTo<JobCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(JobCategory::class, 'job_category_id');
     }
 
+    /** @return BelongsTo<Industry, $this> */
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);
     }
 
+    /** @return BelongsTo<Country, $this> */
     public function country(): BelongsTo
     {
         return $this->belongsTo(Country::class);
     }
 
+    /** @return BelongsTo<City, $this> */
     public function city(): BelongsTo
     {
         return $this->belongsTo(City::class);
     }
 
+    /** @return BelongsToMany<Skill, $this> */
     public function skills(): BelongsToMany
     {
         return $this->belongsToMany(Skill::class, 'job_skill')
             ->withPivot(['is_required', 'sort_order']);
     }
 
+    /** @return MorphToMany<Tag, $this> */
     public function tags(): MorphToMany
     {
         return $this->morphToMany(Tag::class, 'taggable')->withTimestamps();
     }
 
+    /** @return HasMany<JobView, $this> */
     public function views(): HasMany
     {
         return $this->hasMany(JobView::class);
     }
 
+    /** @return HasMany<JobApplyClick, $this> */
     public function applyClicks(): HasMany
     {
         return $this->hasMany(JobApplyClick::class);
     }
 
+    /** @return BelongsToMany<User, $this> */
     public function savedBy(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'saved_jobs')

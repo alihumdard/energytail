@@ -67,6 +67,17 @@ class CityController extends BaseTaxonomyController
             'name' => $record->name,
             'slug' => $record->slug,
             'region' => $record->region,
+
+            /*
+             * The foreign key as well as the expanded relation.
+             *
+             * Writes take country_id, so a read that returned only the nested
+             * country left an edit form with nothing to pre-select — the
+             * required field came back empty and saving was refused. A
+             * resource should return the key it accepts.
+             */
+            'country_id' => $record->country_id,
+
             'country' => $record->relationLoaded('country') && $record->country
                 ? [
                     'id' => $record->country->id,

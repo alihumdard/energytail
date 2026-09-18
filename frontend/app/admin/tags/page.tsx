@@ -9,7 +9,18 @@ export default function TagsPage() {
       navKey="tags"
       title="Tags"
       noun="tags"
+      singular="Tag"
       api={adminTaxonomy.tags}
+      fields={[
+        {
+          name: "name",
+          label: "Tag Name",
+          required: true,
+          placeholder: "e.g. Hydrogen",
+        },
+        { name: "color", label: "Colour", type: "color", nullable: true },
+        { name: "is_active", label: "Active", type: "checkbox" },
+      ]}
       statLabels={{
         total: "Total Tags",
         active: "Active",

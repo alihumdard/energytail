@@ -2,13 +2,17 @@
 
 namespace App\Services\Auth;
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthService
 {
@@ -19,7 +23,7 @@ class AuthService
      */
     public function register(array $data): User
     {
-        return DB::transaction(function () use ($data) {
+        $user = DB::transaction(function () use ($data) {
             $user = User::create([
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
@@ -32,11 +36,67 @@ class AuthService
 
             $user->assignRole($data['role']);
 
-            // Sends the verification email through Laravel's listener.
-            event(new Registered($user));
+            if ($data['role'] === 'employer') {
+                $this->createCompanyFor($user, $data);
+            }
 
             return $user;
         });
+
+        /*
+         * Fired after the transaction commits, and never allowed to fail the
+         * request. Inside the transaction an SMTP outage rolled the account
+         * back, so a mail problem read to the user as "registration failed"
+         * and left them unable to retry with the same address. The account is
+         * the thing worth keeping; the email can be resent.
+         */
+        try {
+            event(new Registered($user));
+        } catch (Throwable $e) {
+            Log::error('Verification email failed to send on registration.', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        return $user;
+    }
+
+    /**
+     * Creates the company an employer will post jobs under.
+     *
+     * Made at sign-up rather than left for later so an employer account never
+     * exists with nothing behind it. It starts pending: the plan asks for no
+     * approval gate on employers themselves, but a company profile should not
+     * appear in public listings before anyone has filled it in.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createCompanyFor(User $user, array $data): void
+    {
+        $name = trim((string) ($data['company_name'] ?? ''));
+
+        if ($name === '') {
+            return;
+        }
+
+        $base = Str::slug($name);
+        $slug = $base;
+
+        // Two employers may legitimately register the same company name, and
+        // the slug is the public URL, so it has to stay unique.
+        for ($suffix = 2; Company::query()->where('slug', $slug)->exists(); $suffix++) {
+            $slug = "{$base}-{$suffix}";
+        }
+
+        Company::create([
+            'owner_id' => $user->id,
+            'name' => $name,
+            'slug' => $slug,
+            'email' => $user->email,
+            'website' => $data['company_website'] ?? null,
+            'status' => Company::STATUS_PENDING,
+        ]);
     }
 
     /**
@@ -54,12 +114,23 @@ class AuthService
             $this->fail($email, $user, 'These credentials do not match our records.');
         }
 
+        /*
+         * Account-standing failures carry a code the frontend can branch on.
+         * Every message arrives against the 'email' field, so without one the
+         * form cannot tell "wrong password" — where retrying makes sense —
+         * from a suspension, where it never will.
+         */
         if ($user->isSuspended()) {
-            $this->fail($email, $user, 'This account has been suspended. Contact support for help.');
+            $this->fail(
+                $email,
+                $user,
+                'This account has been suspended. Contact support for help.',
+                'account_suspended',
+            );
         }
 
         if ($user->trashed()) {
-            $this->fail($email, $user, 'This account is no longer active.');
+            $this->fail($email, $user, 'This account is no longer active.', 'account_closed');
         }
 
         return $user;
@@ -74,11 +145,25 @@ class AuthService
      *
      * @throws ValidationException
      */
-    private function fail(string $email, ?User $user, string $message): never
-    {
+    private function fail(
+        string $email,
+        ?User $user,
+        string $message,
+        ?string $code = null,
+    ): never {
         event(new Failed('web', $user, ['email' => $email]));
 
-        throw ValidationException::withMessages(['email' => [$message]]);
+        $exception = ValidationException::withMessages(['email' => [$message]]);
+
+        if ($code !== null) {
+            $exception->response = response()->json([
+                'message' => $message,
+                'code' => $code,
+                'errors' => ['email' => [$message]],
+            ], 422);
+        }
+
+        throw $exception;
     }
 
     /** Records sign-in metadata for the admin users screen and audit log. */

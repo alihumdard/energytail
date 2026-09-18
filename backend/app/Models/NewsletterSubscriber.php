@@ -20,6 +20,9 @@ class NewsletterSubscriber extends Model
     protected $fillable = [
         'email', 'name', 'user_id', 'status',
         'confirmation_token', 'source', 'ip_address',
+        // Written when a subscriber confirms or leaves; without these here
+        // both timestamps are silently dropped on save.
+        'confirmed_at', 'unsubscribed_at',
     ];
 
     /** The token is the only thing guarding the confirm link. */

@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api/client";
 import { auth as authApi, type RegisterPayload } from "@/lib/api/endpoints";
+import { getCaptchaToken } from "@/lib/auth/captcha";
 import type { User } from "@/lib/api/types";
 
 interface AuthContextValue {
@@ -21,7 +22,8 @@ interface AuthContextValue {
   login: (email: string, password: string, remember?: boolean) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<User>;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;
+  /** Re-reads the session; resolves to the user, or null when signed out. */
+  refresh: () => Promise<User | null>;
   hasRole: (...roles: string[]) => boolean;
   can: (permission: string) => boolean;
 }
@@ -37,6 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await authApi.me();
       setUser(data);
+      // Returned as well as stored: a caller acting on the result cannot wait
+      // for the state update, which lands on a later render.
+      return data;
     } catch (error) {
       // A 401 here is the normal signed-out case, not a failure worth
       // surfacing. Anything else is genuinely unexpected.
@@ -44,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Failed to load the current user", error);
       }
       setUser(null);
+      return null;
     }
   }, []);
 
@@ -75,9 +81,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /*
+   * The CAPTCHA token is fetched here rather than in each form, so a new
+   * form cannot forget it. It resolves to undefined when CAPTCHA is off,
+   * which is the normal case in development.
+   */
   const login = useCallback(
     async (email: string, password: string, remember = false) => {
-      const { data } = await authApi.login(email, password, remember);
+      const token = await getCaptchaToken("login");
+      const { data } = await authApi.login(email, password, remember, token);
       setUser(data);
       return data;
     },
@@ -85,7 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(async (payload: RegisterPayload) => {
-    const { data } = await authApi.register(payload);
+    const token = await getCaptchaToken("register");
+    const { data } = await authApi.register({ ...payload, captcha_token: token });
     setUser(data);
     return data;
   }, []);

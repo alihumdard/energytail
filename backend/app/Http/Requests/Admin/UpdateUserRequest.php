@@ -30,6 +30,18 @@ class UpdateUserRequest extends FormRequest
             ],
             'phone' => ['nullable', 'string', 'max:32'],
             'role' => ['sometimes', 'string', Rule::exists('roles', 'name')],
+
+            /*
+             * Accepted here as well as on create. Leaving it out meant the
+             * admin form offered a verified toggle that silently did nothing
+             * when editing — an administrator confirming an address on a
+             * user's behalf is a legitimate thing to do.
+             *
+             * 'status' is deliberately still absent: suspending runs through
+             * its own endpoint, which records a reason and refuses to strand
+             * the last administrator. Accepting it here would skip both.
+             */
+            'email_verified' => ['sometimes', 'boolean'],
         ];
     }
 

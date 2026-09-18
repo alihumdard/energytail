@@ -111,7 +111,10 @@ return [
             // by policy, not by permission name.
             'permissions' => [
                 'dashboard.view',
-                'companies.view', 'companies.edit',
+                // companies.add is for setting up their own profile the first
+                // time — without it an employer with no company could never
+                // create one, and posting a job requires having one.
+                'companies.view', 'companies.add', 'companies.edit',
                 'jobs.view', 'jobs.add', 'jobs.edit', 'jobs.delete',
             ],
         ],

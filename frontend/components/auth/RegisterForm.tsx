@@ -1,12 +1,25 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building, ClipboardList, Eye, EyeOff, Lock, Mail, User, UserPlus } from "lucide-react";
+import {
+  Building,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  Globe,
+  Lock,
+  Mail,
+  User,
+  UserPlus,
+} from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { auth as authApi } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useDebounced } from "@/lib/hooks/useApiResource";
 import FormField from "@/components/ui/FormField";
+import PasswordStrength, { isPasswordValid } from "@/components/ui/PasswordStrength";
 import PrimaryButton from "@/components/ui/PrimaryButton";
 import Divider from "@/components/ui/Divider";
 import SocialAuthButtons from "@/components/ui/SocialAuthButtons";
@@ -32,6 +45,8 @@ export default function RegisterForm() {
     password: "",
     password_confirmation: "",
     phone: "",
+    company_name: "",
+    company_website: "",
   });
   const [role, setRole] = useState<AccountType>("job_seeker");
   const [terms, setTerms] = useState(false);
@@ -44,13 +59,65 @@ export default function RegisterForm() {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
+  const isEmployer = role === "employer";
+
+  // Checked against the server once the address stops changing, so a taken
+  // email surfaces before the rest of the form is filled in.
+  const debouncedEmail = useDebounced(form.email, 500);
+
+  /*
+   * Holds the address the answer applies to, not just the verdict. Keying it
+   * this way means a result that arrives after the user has typed on is
+   * ignored during render, so nothing has to be cleared from an effect.
+   */
+  const [taken, setTaken] = useState<{ email: string; value: boolean } | null>(null);
+
+  useEffect(() => {
+    const email = debouncedEmail.trim();
+
+    // Anything that cannot be an address is the browser's job to complain
+    // about, not worth a request.
+    if (!email || !email.includes("@") || !email.includes(".")) return;
+
+    let cancelled = false;
+
+    authApi
+      .emailAvailable(email)
+      .then(({ data }) => {
+        if (!cancelled) setTaken({ email, value: !data.available });
+      })
+      .catch(() => {
+        // Availability is a convenience. If the check fails the user can
+        // still submit, and the API rejects a duplicate anyway.
+        if (!cancelled) setTaken({ email, value: false });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedEmail]);
+
+  const emailTaken = taken?.email === form.email.trim() && taken.value;
+
+  const passwordsMatch =
+    form.password_confirmation === "" || form.password === form.password_confirmation;
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
     try {
-      await register({ ...form, role, terms_accepted: terms });
+      const { company_name, company_website, ...common } = form;
+
+      await register({
+        ...common,
+        role,
+        terms_accepted: terms,
+        // Sent only for employers: the API rejects them as unexpected input
+        // for the other two roles, where they mean nothing.
+        ...(isEmployer ? { company_name, company_website } : {}),
+      });
 
       // Registration signs the user in, so the next step is verifying their
       // address rather than signing in again.
@@ -66,7 +133,40 @@ export default function RegisterForm() {
     }
   }
 
-  const generalError = error && !error.isValidation ? error.message : null;
+  /*
+   * Fields with their own inline error slot below. Anything the API reports
+   * outside this set has nowhere to render, so it falls through to the banner
+   * instead of leaving the form silent — which reads as "nothing happened".
+   */
+  const INLINE_FIELDS = [
+    "first_name",
+    "last_name",
+    "email",
+    "password",
+    "role",
+    "terms_accepted",
+    "company_name",
+    "company_website",
+  ];
+
+  const hasInlineError = INLINE_FIELDS.some((field) => error?.fieldError(field));
+  const generalError = error && !hasInlineError ? error.message : null;
+
+  /*
+   * Blocks a submit that the API is certain to reject. The server validates
+   * all of this again — this only saves the user a round trip and a form that
+   * comes back covered in errors.
+   */
+  const canSubmit =
+    !submitting &&
+    !emailTaken &&
+    form.first_name.trim() !== "" &&
+    form.last_name.trim() !== "" &&
+    form.email.trim() !== "" &&
+    isPasswordValid(form.password) &&
+    form.password === form.password_confirmation &&
+    terms &&
+    (!isEmployer || form.company_name.trim() !== "");
 
   return (
     <form className="mt-6 space-y-5" onSubmit={handleSubmit} noValidate>
@@ -117,8 +217,20 @@ export default function RegisterForm() {
         icon={Mail}
         value={form.email}
         onChange={update("email")}
-        error={error?.fieldError("email")}
+        error={
+          error?.fieldError("email") ??
+          (emailTaken ? "An account already uses this address." : undefined)
+        }
       />
+
+      {emailTaken && !error?.fieldError("email") && (
+        <p className="-mt-3 text-sm text-slate-500">
+          Already registered?{" "}
+          <a href="/login" className="text-blue-600 font-medium hover:underline">
+            Sign in instead
+          </a>
+        </p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FormField
@@ -154,12 +266,14 @@ export default function RegisterForm() {
           icon={Lock}
           value={form.password_confirmation}
           onChange={update("password_confirmation")}
+          error={passwordsMatch ? undefined : "Both passwords must match."}
         />
       </div>
-      <p className="text-xs text-slate-400 -mt-3">
-        Password must be at least 8 characters with uppercase, lowercase, number &amp; special
-        character.
-      </p>
+
+      {/* Replaces the static rule text: the same rules, ticked off as met. */}
+      <div className="-mt-3">
+        <PasswordStrength value={form.password} />
+      </div>
 
       <div>
         <h3 className="font-semibold text-slate-800 text-sm mb-1">Account Type</h3>
@@ -203,6 +317,45 @@ export default function RegisterForm() {
         )}
       </div>
 
+      {/*
+        Employers only. The company is created with the account, so an
+        employer never lands on their dashboard with nothing to post under.
+      */}
+      {isEmployer && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-4">
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Company Details</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Your jobs will be posted under this company. You can add the rest later.
+            </p>
+          </div>
+
+          <FormField
+            label="Company Name"
+            name="company_name"
+            required
+            autoComplete="organization"
+            placeholder="e.g. PetroEnergy Solutions"
+            icon={Building}
+            value={form.company_name}
+            onChange={update("company_name")}
+            error={error?.fieldError("company_name")}
+          />
+
+          <FormField
+            label="Company Website"
+            name="company_website"
+            type="url"
+            autoComplete="url"
+            placeholder="https://example.com"
+            icon={Globe}
+            value={form.company_website}
+            onChange={update("company_website")}
+            error={error?.fieldError("company_website")}
+          />
+        </div>
+      )}
+
       <div>
         <label className="flex items-start gap-2 text-sm text-slate-600">
           <input
@@ -213,13 +366,23 @@ export default function RegisterForm() {
           />
           <span>
             I agree to the{" "}
-            <a href="/terms" className="text-blue-600 hover:underline">
+            {/* New tab: a half-filled registration form should survive
+                someone reading what they are agreeing to. */}
+            <Link
+              href="/terms"
+              target="_blank"
+              className="text-blue-600 hover:underline"
+            >
               Terms of Use
-            </a>{" "}
+            </Link>{" "}
             and{" "}
-            <a href="/privacy" className="text-blue-600 hover:underline">
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="text-blue-600 hover:underline"
+            >
               Privacy Policy
-            </a>{" "}
+            </Link>{" "}
             <span className="text-red-500">*</span>
           </span>
         </label>
@@ -230,9 +393,9 @@ export default function RegisterForm() {
 
       <PrimaryButton
         type="submit"
-        disabled={submitting}
+        disabled={!canSubmit}
         icon={<UserPlus className="w-4 h-4" />}
-        className={submitting ? "opacity-70 cursor-not-allowed" : ""}
+        className={!canSubmit ? "opacity-70 cursor-not-allowed" : ""}
       >
         {submitting ? "Creating account…" : "Create Account"}
       </PrimaryButton>

@@ -1,355 +1,537 @@
 "use client";
 
 import { useState } from "react";
-import Shell from "@/components/admin/Shell";
-import { Badge, PageHeader, StatCard } from "@/components/admin/ShellUI";
-import { allArticles } from "@/data/adminMockData";
+import Link from "next/link";
 import {
-  Plus,
-  Files,
-  BadgeCheck,
-  FileClock,
-  FileEdit,
-  CalendarClock,
-  Trash2,
-  Download,
-  Search,
-  Filter,
+  CheckCircle2,
+  Clock,
   Eye,
-  Pencil,
-  MoreVertical,
-  ChevronDown,
+  EyeOff,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Search,
+  Star,
+  Trash2,
+  XCircle,
 } from "lucide-react";
+import AdminShell from "@/components/admin/AdminShell";
+import { ApiError } from "@/lib/api/client";
+import { adminArticles } from "@/lib/api/endpoints";
+import { useApiResource, useDebounced } from "@/lib/hooks/useApiResource";
+import type { AdminArticle } from "@/lib/api/types";
 
-const statusColor: Record<
-  string,
-  { badge: "green" | "amber" | "gray" | "blue"; dot: string }
-> = {
-  Published: { badge: "green", dot: "#16a34a" },
-  "Pending Review": { badge: "amber", dot: "#d97706" },
-  Draft: { badge: "gray", dot: "#6b7280" },
-  Scheduled: { badge: "blue", dot: "#2563eb" },
+const STATUS_STYLE: Record<string, string> = {
+  published: "bg-emerald-50 text-emerald-700",
+  pending_review: "bg-blue-50 text-blue-700",
+  draft: "bg-slate-100 text-slate-600",
+  scheduled: "bg-violet-50 text-violet-700",
+  rejected: "bg-red-50 text-red-700",
 };
 
-const tabs = ["All Articles", "Published", "Pending Review", "Draft", "Scheduled", "Trash"];
-
-const donutData = [
-  { label: "Published", value: 512, pct: 67.7, color: "#16a34a" },
-  { label: "Pending Review", value: 78, pct: 10.3, color: "#f59e0b" },
-  { label: "Draft", value: 95, pct: 12.6, color: "#a855f7" },
-  { label: "Scheduled", value: 41, pct: 5.4, color: "#2563eb" },
-  { label: "Trash", value: 30, pct: 4.0, color: "#ef4444" },
+const TABS = [
+  { label: "All", status: "" },
+  { label: "Pending Review", status: "pending_review" },
+  { label: "Published", status: "published" },
+  { label: "Drafts", status: "draft" },
+  { label: "Rejected", status: "rejected" },
 ];
 
-function Donut() {
-  const size = 180;
-  const stroke = 26;
-  const r = (size - stroke) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
-  const circumference = 2 * Math.PI * r;
-
-  const segments = donutData.reduce<
-    { label: string; color: string; dash: number; offset: number }[]
-  >((acc, d) => {
-    const offset = acc.reduce((sum, s) => sum + s.dash, 0);
-    const dash = (d.pct / 100) * circumference;
-    acc.push({ label: d.label, color: d.color, dash, offset });
-    return acc;
-  }, []);
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <g transform={`rotate(-90 ${cx} ${cy})`}>
-        {segments.map((d) => (
-          <circle
-            key={d.label}
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            stroke={d.color}
-            strokeWidth={stroke}
-            strokeDasharray={`${d.dash} ${circumference - d.dash}`}
-            strokeDashoffset={-d.offset}
-          />
-        ))}
-      </g>
-      <text
-        x={cx}
-        y={cy - 6}
-        textAnchor="middle"
-        className="fill-gray-900"
-        style={{ fontSize: 26, fontWeight: 700 }}
-      >
-        756
-      </text>
-      <text
-        x={cx}
-        y={cy + 14}
-        textAnchor="middle"
-        className="fill-gray-400"
-        style={{ fontSize: 11 }}
-      >
-        Total Articles
-      </text>
-    </svg>
-  );
+function humanise(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ArticlesManagementPage() {
-  const [activeTab, setActiveTab] = useState("All Articles");
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export default function AdminArticlesPage() {
+  const [tab, setTab] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<AdminArticle | null>(null);
+  const [reason, setReason] = useState("");
+  const [deleting, setDeleting] = useState<AdminArticle | null>(null);
+
+  const debouncedSearch = useDebounced(search);
+
+  const {
+    data: list,
+    loading,
+    refetch,
+  } = useApiResource(
+    () =>
+      adminArticles.list({
+        status: tab || undefined,
+        search: debouncedSearch || undefined,
+        page,
+        per_page: 20,
+      }),
+    [tab, debouncedSearch, page],
+  );
+
+  const { data: statsResponse, refetch: refetchStats } = useApiResource(
+    () => adminArticles.stats(),
+    [],
+  );
+
+  const articles = list?.data ?? [];
+  const meta = list?.meta;
+  const stats = statsResponse?.data.stats;
+
+  async function run(article: AdminArticle, work: () => Promise<unknown>) {
+    setBusyId(article.id);
+    setActionError(null);
+
+    try {
+      await work();
+      refetch();
+      refetchStats();
+    } catch (err) {
+      // ApiError.detail, not .message: a 422's top-level text is always
+      // "The given data was invalid." and explains nothing.
+      setActionError(
+        err instanceof ApiError ? err.detail : "Could not update the article.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmReject() {
+    if (!rejecting) return;
+
+    const article = rejecting;
+    const text = reason;
+
+    setRejecting(null);
+    setReason("");
+
+    await run(article, () => adminArticles.reject(article.id, text));
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+
+    const article = deleting;
+    setDeleting(null);
+
+    await run(article, () => adminArticles.remove(article.id));
+  }
+
+  const cards = [
+    {
+      label: "Total Articles",
+      value: stats?.total,
+      icon: FileText,
+      tone: "bg-blue-50 text-blue-600",
+    },
+    {
+      label: "Pending Review",
+      value: stats?.pending_review,
+      icon: Clock,
+      tone: "bg-orange-50 text-orange-600",
+    },
+    {
+      label: "Published",
+      value: stats?.published,
+      icon: CheckCircle2,
+      tone: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      label: "Total Views",
+      value: stats?.views,
+      icon: Eye,
+      tone: "bg-violet-50 text-violet-600",
+    },
+  ];
 
   return (
-    <Shell>
-      <PageHeader
-        title="Articles Management"
-        breadcrumb={[{ label: "Dashboard", href: "/admin/dashboard" }, { label: "Articles" }]}
-        actions={
-          <button className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-brand-700">
-            <Plus size={15} />
-            Create New Article
-          </button>
-        }
-      />
-
-      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard icon={Files} iconColor="text-blue-600" iconBg="bg-blue-50" value={756} label="Total Articles" meta="↑ 16.5% vs last month" metaColor="text-green-600" />
-        <StatCard icon={BadgeCheck} iconColor="text-green-600" iconBg="bg-green-50" value={512} label="Published" meta="↑ 12.8% vs last month" metaColor="text-green-600" />
-        <StatCard icon={FileClock} iconColor="text-amber-600" iconBg="bg-amber-50" value={78} label="Pending Review" meta="↓ 8.3% vs last month" metaColor="text-red-500" />
-        <StatCard icon={FileEdit} iconColor="text-purple-600" iconBg="bg-purple-50" value={95} label="Draft" meta="↑ 5.2% vs last month" metaColor="text-green-600" />
-        <StatCard icon={CalendarClock} iconColor="text-blue-600" iconBg="bg-blue-50" value={41} label="Scheduled" meta="↑ 16.1% vs last month" metaColor="text-green-600" />
-        <StatCard icon={Trash2} iconColor="text-red-600" iconBg="bg-red-50" value={30} label="Trash" meta="↓ 3.6% vs last month" metaColor="text-red-500" />
+    <AdminShell active="articles">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Articles</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Articles are reviewed before they go live. Approve, send back with a
+          reason, or take a published piece off the feed.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
-        <div className="min-w-0 rounded-xl border border-gray-200 bg-white shadow-card">
-          <div className="flex gap-1 overflow-x-auto border-b border-gray-100 px-2 pt-2 sm:px-4">
-            {tabs.map((tab) => (
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((c) => (
+          <div
+            key={c.label}
+            className="rounded-xl border border-slate-200 bg-white p-5"
+          >
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-sm text-slate-500">{c.label}</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">
+                  {c.value === undefined ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  ) : (
+                    c.value.toLocaleString()
+                  )}
+                </p>
+              </div>
+              <span
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${c.tone}`}
+              >
+                <c.icon size={20} />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {actionError}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
+          <div className="flex flex-wrap gap-1">
+            {TABS.map((t) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-[13.5px] font-medium transition ${
-                  activeTab === tab
-                    ? "border-brand-600 text-brand-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                key={t.label}
+                type="button"
+                onClick={() => {
+                  setTab(t.status);
+                  setPage(1);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  tab === t.status
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                {tab}
+                {t.label}
+                {t.status === "pending_review" && stats?.pending_review ? (
+                  <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
+                    {stats.pending_review}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
 
-          <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <SelectMini options={["Bulk Actions", "Publish", "Move to Draft", "Delete"]} />
-              <button className="rounded-lg bg-brand-600 px-3.5 py-2 text-[13px] font-medium text-white hover:bg-brand-700">
-                Apply
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">
-                <Download size={14} />
-                Export
-              </button>
-              <div className="relative">
-                <Search
-                  size={14}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input placeholder="Search articles..." className="input w-44 pl-8 sm:w-52" />
-              </div>
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
-                <Filter size={14} />
-              </button>
-            </div>
+          <div className="relative ml-auto w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Title, excerpt or author…"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
           </div>
+        </div>
 
+        {loading && articles.length === 0 ? (
+          <div className="flex items-center gap-2 p-10 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading articles…
+          </div>
+        ) : articles.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-500">
+            No articles match this filter.
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-[13px]">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
-                <tr className="border-b border-gray-100 text-[12px] uppercase tracking-wide text-gray-400">
-                  <th className="w-10 px-4 py-3">
-                    <input type="checkbox" className="rounded border-gray-300" />
-                  </th>
-                  <th className="px-3 py-3 font-medium">Article</th>
-                  <th className="px-3 py-3 font-medium">Author</th>
-                  <th className="px-3 py-3 font-medium">Category</th>
-                  <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 font-medium">Views</th>
-                  <th className="px-3 py-3 font-medium">Comments</th>
-                  <th className="px-3 py-3 font-medium">Published Date</th>
-                  <th className="w-24 px-3 py-3 font-medium">Actions</th>
+                <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <th className="px-4 py-3 font-medium">Article</th>
+                  <th className="px-4 py-3 font-medium">Author</th>
+                  <th className="px-4 py-3 font-medium">Category</th>
+                  <th className="px-4 py-3 font-medium">Views</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {allArticles.map((a) => (
-                  <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={a.image} alt="" className="h-full w-full object-cover" />
+                {articles.map((a) => {
+                  const busy = busyId === a.id;
+
+                  return (
+                    <tr
+                      key={a.id}
+                      className="border-b border-slate-50 last:border-0 align-top"
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-800">
+                            {a.title}
+                          </p>
+                          {a.is_featured && (
+                            <Star
+                              size={13}
+                              className="shrink-0 fill-amber-400 text-amber-400"
+                            />
+                          )}
                         </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-gray-900">{a.title}</p>
-                          <p className="truncate text-gray-400">{a.slug}</p>
+                        <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+                          {a.reading_minutes
+                            ? `${a.reading_minutes} min read`
+                            : null}
+                          {a.comments_count > 0 && (
+                            <span className="inline-flex items-center gap-1">
+                              <MessageSquare size={11} />
+                              {a.comments_count}
+                            </span>
+                          )}
+                        </p>
+                        {/* The reason a piece came back, where a moderator
+                                reviewing the queue will actually see it. */}
+                        {a.status === "rejected" && a.review_notes && (
+                          <p className="mt-1.5 rounded border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-700">
+                            {a.review_notes}
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {a.author ? (
+                          <>
+                            <p className="text-slate-700">{a.author.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {a.author.email}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-600">
+                        {a.category?.name ?? "—"}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-600">
+                        {a.views_count.toLocaleString()}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            STATUS_STYLE[a.status] ??
+                            "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {humanise(a.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-500">
+                        {formatDate(a.published_at ?? a.created_at)}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {busy ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                title={a.is_featured ? "Unfeature" : "Feature"}
+                                onClick={() =>
+                                  run(a, () =>
+                                    adminArticles.toggleFeatured(a.id),
+                                  )
+                                }
+                                className={`rounded p-1.5 hover:bg-slate-100 ${
+                                  a.is_featured
+                                    ? "text-amber-500"
+                                    : "text-slate-300"
+                                }`}
+                              >
+                                <Star size={16} />
+                              </button>
+
+                              {a.status !== "published" && (
+                                <button
+                                  type="button"
+                                  title="Approve and publish"
+                                  onClick={() =>
+                                    run(a, () => adminArticles.approve(a.id))
+                                  }
+                                  className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+                              )}
+
+                              {a.status === "published" ? (
+                                <button
+                                  type="button"
+                                  title="Unpublish"
+                                  onClick={() =>
+                                    run(a, () => adminArticles.unpublish(a.id))
+                                  }
+                                  className="rounded p-1.5 text-orange-500 hover:bg-orange-50"
+                                >
+                                  <EyeOff size={16} />
+                                </button>
+                              ) : (
+                                a.status !== "rejected" && (
+                                  <button
+                                    type="button"
+                                    title="Send back to author"
+                                    onClick={() => setRejecting(a)}
+                                    className="rounded p-1.5 text-red-500 hover:bg-red-50"
+                                  >
+                                    <XCircle size={16} />
+                                  </button>
+                                )
+                              )}
+
+                              <Link
+                                href={`/articles/${a.slug}`}
+                                target="_blank"
+                                title="View public page"
+                                className="rounded p-1.5 text-slate-400 hover:bg-slate-100"
+                              >
+                                <Eye size={16} />
+                              </Link>
+
+                              <button
+                                type="button"
+                                title="Delete"
+                                onClick={() => setDeleting(a)}
+                                className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-gray-700">{a.author}</td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <Badge color={a.categoryColor}>{a.category}</Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <Badge color={statusColor[a.status].badge} dot>
-                        {a.status}
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-gray-600">{a.views}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-gray-600">{a.comments}</td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <p className="text-gray-800">{a.date}</p>
-                      {a.time && <p className="text-gray-400">{a.time}</p>}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <div className="flex items-center gap-1">
-                        <IconBtn icon={Eye} />
-                        <IconBtn icon={Pencil} />
-                        <IconBtn icon={MoreVertical} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        )}
 
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 p-4 sm:flex-row">
-            <p className="text-[13px] text-gray-500">Showing 1 to 8 of 756 articles</p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[13px] text-gray-400">‹</button>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  className={`h-8 w-8 rounded-md text-[13px] font-medium ${
-                    n === 1
-                      ? "bg-brand-600 text-white"
-                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-              <span className="px-1 text-gray-400">...</span>
-              <button className="h-8 w-8 rounded-md border border-gray-200 text-[13px] text-gray-600 hover:bg-gray-50">76</button>
-              <button className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[13px] text-gray-600 hover:bg-gray-50">›</button>
-              <SelectMini options={["10 / page", "25 / page", "50 / page"]} />
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar: overview + filters */}
-        <div className="space-y-5">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-card">
-            <h3 className="mb-4 text-[15px] font-semibold text-gray-900">
-              Articles Overview
-            </h3>
-            <div className="flex items-center gap-5">
-              <Donut />
-              <ul className="space-y-2 text-[12.5px]">
-                {donutData.map((d) => (
-                  <li key={d.label} className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: d.color }}
-                    />
-                    <span className="text-gray-600">{d.label}</span>
-                    <span className="ml-auto font-medium text-gray-800">
-                      {d.value} ({d.pct}%)
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-card">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold text-gray-900">Filters</h3>
-              <button className="text-[13px] font-medium text-brand-600 hover:text-brand-700">
-                Clear All
+        {meta && meta.last_page > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 p-4 text-sm">
+            <p className="text-slate-500">
+              Page {meta.current_page} of {meta.last_page} · {meta.total}{" "}
+              articles
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={meta.current_page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              >
+                Previous
               </button>
-            </div>
-            <div className="space-y-4">
-              <Field label="Category">
-                <SelectField options={["All Categories", "Renewable Energy", "Oil & Gas", "LNG", "HSE"]} />
-              </Field>
-              <Field label="Author">
-                <SelectField options={["All Authors", "John Smith", "Sarah Johnson"]} />
-              </Field>
-              <Field label="Status">
-                <SelectField options={["All Status", "Published", "Pending Review", "Draft", "Scheduled"]} />
-              </Field>
-              <Field label="Date Range">
-                <input placeholder="Select date range" className="input" />
-              </Field>
-              <Field label="Keyword">
-                <input placeholder="Search by title or content..." className="input" />
-              </Field>
-              <button className="w-full rounded-lg bg-brand-600 py-2.5 text-[13.5px] font-medium text-white hover:bg-brand-700">
-                Apply Filters
+              <button
+                type="button"
+                disabled={meta.current_page >= meta.last_page}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              >
+                Next
               </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
-    </Shell>
-  );
-}
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-gray-600">{label}</span>
-      {children}
-    </label>
-  );
-}
+      {/* Reject dialog — the reason is stored on the article for the author. */}
+      {rejecting && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              Send back to the author?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              &ldquo;{rejecting.title}&rdquo; goes back as rejected. The reason
+              is saved on the article so the author can read it and fix the
+              piece.
+            </p>
 
-function SelectField({ options }: { options: string[] }) {
-  return (
-    <div className="relative">
-      <select className="input appearance-none pr-8">
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-      <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-    </div>
-  );
-}
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={4}
+              placeholder="What needs to change before this can be published?"
+              className="mt-4 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-blue-400 focus:outline-none"
+            />
 
-function SelectMini({ options }: { options: string[] }) {
-  return (
-    <div className="relative">
-      <select className="appearance-none rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-7 text-[13px] text-gray-600 focus:border-brand-400 focus:outline-none">
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-      <ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
-    </div>
-  );
-}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejecting(null);
+                  setReason("");
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reason.trim() === ""}
+                onClick={confirmReject}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                Send back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-function IconBtn({ icon: Icon }: { icon: typeof Eye }) {
-  return (
-    <button className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100">
-      <Icon size={14} />
-    </button>
+      {deleting && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              Delete this article?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              &ldquo;{deleting.title}&rdquo; will be removed from the site.
+              Sending it back to the author is usually the better choice — a
+              deleted article cannot be corrected and resubmitted.
+            </p>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleting(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </AdminShell>
   );
 }

@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Throwable;
 
 class EmailVerificationController extends Controller
 {
@@ -52,8 +56,23 @@ class EmailVerificationController extends Controller
         $user->markEmailAsVerified();
         event(new Verified($user));
 
+        // Queued, and never allowed to fail the request: the address is
+        // already confirmed by this point, so a mail problem must not read
+        // back to the user as a failed verification.
+        try {
+            $user->notify(new WelcomeNotification);
+        } catch (Throwable $e) {
+            Log::error('Welcome email failed to send.', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return response()->json(['message' => 'Email verified. You can now sign in.']);
     }
+
+    /** Seconds a user must wait between verification emails. */
+    private const RESEND_COOLDOWN = 60;
 
     public function resend(Request $request): JsonResponse
     {
@@ -63,8 +82,31 @@ class EmailVerificationController extends Controller
             return response()->json(['message' => 'Your email is already verified.']);
         }
 
+        /*
+         * Per-user cooldown, on top of the route throttle. The throttle is
+         * keyed by IP, so it does nothing to stop one account being used to
+         * post mail at an address repeatedly — which is what gets a sending
+         * domain marked as spam.
+         */
+        $key = "verification-resend:{$user->id}";
+
+        if (($seconds = Cache::get($key)) !== null) {
+            $remaining = max(1, $seconds - time());
+
+            return response()->json([
+                'message' => "Please wait {$remaining} seconds before requesting another email.",
+                'code' => 'resend_cooldown',
+                'retry_after' => $remaining,
+            ], 429);
+        }
+
         $user->sendEmailVerificationNotification();
 
-        return response()->json(['message' => 'Verification email sent.']);
+        Cache::put($key, time() + self::RESEND_COOLDOWN, self::RESEND_COOLDOWN);
+
+        return response()->json([
+            'message' => 'Verification email sent.',
+            'retry_after' => self::RESEND_COOLDOWN,
+        ]);
     }
 }

@@ -6,6 +6,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * A language the candidate speaks.
+ *
+ * @property int $id
+ * @property int $user_id
+ * @property string $language
+ * @property string|null $proficiency
+ * @property int $sort_order
+ */
 class SeekerLanguage extends Model
 {
     use HasFactory;
