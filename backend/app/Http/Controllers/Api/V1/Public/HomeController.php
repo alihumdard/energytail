@@ -59,7 +59,12 @@ class HomeController extends Controller
     }
 
     /**
-     * Categories with a live count of open roles.
+     * Top-level categories with a live count of open roles.
+     *
+     * Jobs attach to a leaf category (e.g. "Petroleum Engineering"), never
+     * to its parent group (e.g. "Engineering") directly, so a tile's count
+     * has to sum every child under it — counting only jobs.job_category_id
+     * matches against the parent row would show every group as empty.
      *
      * The count is what makes the tile worth clicking — a category leading to
      * an empty board is a dead end, so categories with nothing open are left
@@ -69,19 +74,25 @@ class HomeController extends Controller
      */
     private function categories(): array
     {
-        return DB::table('job_categories')
+        return DB::table('job_categories as parent')
+            ->leftJoin('job_categories as child', function ($join) {
+                $join->on('child.parent_id', '=', 'parent.id')
+                    ->whereNull('child.deleted_at')
+                    ->where('child.is_active', true);
+            })
             ->leftJoin('jobs', function ($join) {
-                $join->on('jobs.job_category_id', '=', 'job_categories.id')
+                $join->on('jobs.job_category_id', '=', DB::raw('coalesce(child.id, parent.id)'))
                     ->where('jobs.status', '=', Job::STATUS_PUBLISHED)
                     ->whereNull('jobs.deleted_at');
             })
-            ->where('job_categories.is_active', true)
-            ->whereNull('job_categories.deleted_at')
-            ->selectRaw('job_categories.name, job_categories.slug, job_categories.emoji, job_categories.color, count(jobs.id) as jobs_count')
-            ->groupBy('job_categories.id', 'job_categories.name', 'job_categories.slug', 'job_categories.emoji', 'job_categories.color')
+            ->whereNull('parent.parent_id')
+            ->where('parent.is_active', true)
+            ->whereNull('parent.deleted_at')
+            ->selectRaw('parent.name, parent.slug, parent.emoji, parent.color, count(jobs.id) as jobs_count')
+            ->groupBy('parent.id', 'parent.name', 'parent.slug', 'parent.emoji', 'parent.color')
             ->havingRaw('count(jobs.id) > 0')
             ->orderByDesc('jobs_count')
-            ->orderBy('job_categories.name')
+            ->orderBy('parent.name')
             ->limit(8)
             ->get()
             ->map(fn ($row) => [

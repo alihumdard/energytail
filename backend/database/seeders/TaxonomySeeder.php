@@ -52,31 +52,113 @@ class TaxonomySeeder extends Seeder
         }
     }
 
+    /**
+     * Oil & gas job categories, as parent groups with sub-disciplines.
+     *
+     * Sub-category slugs are matched against the categories seeded before
+     * this rewrite (e.g. old "Drilling", "Production Engineering", "HSE")
+     * so jobs already pointing at those ids stay attached under the new
+     * grouping rather than being orphaned onto a fresh row.
+     */
     private function seedJobCategories(): void
     {
-        $rows = [
-            ['Drilling', 'Drilling operations and engineering jobs', '🛢️', '#3b82f6'],
-            ['Production Engineering', 'Production and field engineering roles', '🏭', '#10b981'],
-            ['HSE (Health, Safety & Environment)', 'Health, safety and environment jobs', '🦺', '#f59e0b'],
-            ['Process Engineering', 'Process design and optimization roles', '⚙️', '#8b5cf6'],
-            ['Maintenance', 'Maintenance and reliability jobs', '🔧', '#06b6d4'],
-            ['Logistics & Supply Chain', 'Logistics, procurement and supply chain', '🚚', '#ef4444'],
-            ['Finance & Accounting', 'Finance, accounting and auditing jobs', '💰', '#eab308'],
-            ['Human Resources', 'HR, recruitment and administration roles', '👥', '#64748b'],
-            ['Marine Operations', 'Marine operations and offshore support', '⚓', '#0ea5e9'],
-            ['Research & Development', 'R&D and innovation roles', '🧪', '#a855f7'],
-            ['Geoscience', 'Geology, geophysics and reservoir studies', '🌍', '#14b8a6'],
-            ['Instrumentation & Control', 'Instrumentation, automation and control systems', '🎛️', '#6366f1'],
+        $groups = [
+            'Engineering' => ['🛠️', '#3b82f6', [
+                'Petroleum Engineering',
+                'Mechanical Engineering',
+                'Electrical Engineering',
+                'Chemical Engineering',
+                'Process Engineering',
+            ]],
+            'Drilling & Well Operations' => ['🛢️', '#8b5cf6', [
+                'Drilling',
+                'Well Engineering',
+                'Completions',
+                'Well Services',
+                'Rig Operations',
+            ]],
+            'Production & Operations' => ['🏭', '#10b981', [
+                'Production Engineering',
+                'Field Operations',
+                'Production Operations',
+                'Operations Management',
+                'Plant Operations',
+            ]],
+            'HSE & Environmental' => ['🦺', '#f59e0b', [
+                'Health & Safety',
+                'HSE Engineering',
+                'Process Safety',
+                'Environmental',
+                'Emergency Response',
+            ]],
+            'Pipeline Engineering & Operations' => ['🚧', '#ef4444', [
+                'Pipeline Engineering',
+                'Pipeline Operations',
+                'Pipeline Construction',
+                'Pipeline Integrity',
+                'Pipeline Inspection',
+                'Corrosion Control',
+                'Pipeline Maintenance',
+                'Piping Engineering',
+                'Pipeline Projects',
+                'Offshore/Subsea Pipelines',
+            ]],
+            'Instrument Technicians' => ['🎛️', '#6366f1', [
+                'Maintenance, Reliability & Inspection',
+                'Mechanical Maintenance',
+                'Electrical Maintenance',
+                'Reliability Engineering',
+                'Inspection',
+                'NDT / Integrity',
+            ]],
+            'Geoscience & Exploration' => ['🌍', '#14b8a6', [
+                'Geology',
+                'Geophysics',
+                'Reservoir Engineering',
+                'Exploration',
+                'Seismic',
+            ]],
+            'Projects, Procurement & Supply Chain' => ['🚚', '#eab308', [
+                'Project Management',
+                'Project Engineering',
+                'Planning & Scheduling',
+                'Procurement',
+                'Supply Chain & Logistics',
+            ]],
         ];
 
-        foreach ($rows as $i => [$name, $description, $emoji, $color]) {
-            JobCategory::updateOrCreate(
-                ['slug' => Str::slug($name)],
-                compact('name', 'description', 'emoji', 'color') + [
-                    'sort_order' => $i + 1,
-                    'is_featured' => $i < 5,
+        $groupIndex = 0;
+
+        foreach ($groups as $groupName => [$emoji, $color, $children]) {
+            $groupIndex++;
+
+            $parent = JobCategory::updateOrCreate(
+                ['slug' => Str::slug($groupName)],
+                [
+                    'name' => $groupName,
+                    'description' => "{$groupName} roles across the energy sector",
+                    'emoji' => $emoji,
+                    'color' => $color,
+                    'parent_id' => null,
+                    'sort_order' => $groupIndex,
+                    'is_featured' => true,
                 ]
             );
+
+            foreach ($children as $childIndex => $childName) {
+                JobCategory::updateOrCreate(
+                    ['slug' => Str::slug($childName)],
+                    [
+                        'name' => $childName,
+                        'description' => "{$childName} jobs",
+                        'emoji' => $emoji,
+                        'color' => $color,
+                        'parent_id' => $parent->id,
+                        'sort_order' => $childIndex + 1,
+                        'is_featured' => false,
+                    ]
+                );
+            }
         }
     }
 

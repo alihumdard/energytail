@@ -19,10 +19,6 @@ import {
   Cog,
   Wrench,
   Truck,
-  Wallet,
-  Users,
-  Anchor,
-  FlaskConical,
   Mountain,
   SlidersHorizontal,
   type LucideIcon,
@@ -43,19 +39,18 @@ export const metadata: Metadata = {
 
 const POPULAR_SEARCHES = ["Engineer", "HSE", "Drilling", "LNG", "QA/QC", "Pipeline", "Offshore"];
 
-/** A real icon per category, keyed by slug — no emoji, consistent weight and sizing. */
+/** A real icon per top-level category, keyed by slug — no emoji, consistent
+ *  weight and sizing. Keyed to the 8 parent groups; a category added later
+ *  falls back to Briefcase rather than needing this map updated first. */
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  drilling: HardHat,
-  "hse-health-safety-environment": ShieldCheck,
-  "process-engineering": Cog,
-  maintenance: Wrench,
-  "logistics-supply-chain": Truck,
-  "finance-accounting": Wallet,
-  "human-resources": Users,
-  "marine-operations": Anchor,
-  "research-development": FlaskConical,
-  geoscience: Mountain,
-  "instrumentation-control": SlidersHorizontal,
+  engineering: Cog,
+  "drilling-well-operations": HardHat,
+  "production-operations": Wrench,
+  "hse-environmental": ShieldCheck,
+  "pipeline-engineering-operations": Truck,
+  "instrument-technicians": SlidersHorizontal,
+  "geoscience-exploration": Mountain,
+  "projects-procurement-supply-chain": Briefcase,
 };
 
 /** Stand-in photo per article category, used only when the homepage feed

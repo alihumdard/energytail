@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Http\Controllers\Controller;
 use App\Models\Job;
+use App\Models\JobCategory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -130,11 +131,31 @@ class PublicJobController extends Controller
         foreach ([
             'country' => 'country',
             'city' => 'city',
-            'category' => 'category',
             'industry' => 'industry',
         ] as $param => $relation) {
             if ($slug = $request->string($param)->toString()) {
                 $query->whereHas($relation, fn (Builder $q) => $q->where('slug', $slug));
+            }
+        }
+
+        /*
+         * Category is matched by slug too, but a job's category is always a
+         * leaf (e.g. "Petroleum Engineering"), never the parent group (e.g.
+         * "Engineering") it sits under. Filtering by a parent's slug has to
+         * match every job whose category is one of that parent's children,
+         * not just a category row with that exact slug.
+         */
+        if ($categorySlug = $request->string('category')->toString()) {
+            $category = JobCategory::query()->where('slug', $categorySlug)->first(['id', 'parent_id']);
+
+            if ($category === null) {
+                $query->whereRaw('1 = 0');
+            } elseif ($category->parent_id === null) {
+                $query->whereHas('category', fn (Builder $q) => $q
+                    ->where('id', $category->id)
+                    ->orWhere('parent_id', $category->id));
+            } else {
+                $query->where('job_category_id', $category->id);
             }
         }
 
