@@ -66,9 +66,11 @@ class HomeController extends Controller
      * has to sum every child under it — counting only jobs.job_category_id
      * matches against the parent row would show every group as empty.
      *
-     * The count is what makes the tile worth clicking — a category leading to
-     * an empty board is a dead end, so categories with nothing open are left
-     * out entirely.
+     * Only featured parents are eligible: is_featured is the admin's own
+     * on/off switch for this list, not a suggestion — unchecking it should
+     * take the tile off the homepage regardless of how many jobs sit under
+     * it. The count is still what makes a featured tile worth clicking, so
+     * one leading to an empty board is left out too.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -87,6 +89,7 @@ class HomeController extends Controller
             })
             ->whereNull('parent.parent_id')
             ->where('parent.is_active', true)
+            ->where('parent.is_featured', true)
             ->whereNull('parent.deleted_at')
             ->selectRaw('parent.name, parent.slug, parent.emoji, parent.color, count(jobs.id) as jobs_count')
             ->groupBy('parent.id', 'parent.name', 'parent.slug', 'parent.emoji', 'parent.color')
