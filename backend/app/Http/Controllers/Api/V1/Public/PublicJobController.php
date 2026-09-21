@@ -82,6 +82,36 @@ class PublicJobController extends Controller
     }
 
     /**
+     * The apply destination, shown up front to a signed-in job seeker.
+     *
+     * Separate from show() because that response is cached by the frontend's
+     * server-side fetch, which never carries the visitor's session cookie —
+     * baking this into show() would mean either every visitor sees it or
+     * none do, whichever request happened to fill the cache. This endpoint
+     * is called from the browser instead, where the session cookie is
+     * actually present, so it correctly varies per signed-in visitor.
+     *
+     * Unlike the apply endpoint, this does not record a click — it only
+     * previews the destination.
+     */
+    public function applyTarget(Request $request, string $slug): JsonResponse
+    {
+        if ($request->user() === null) {
+            return response()->json(['data' => null]);
+        }
+
+        $job = Job::query()->published()->notExpired()->where('slug', $slug)->firstOrFail();
+
+        return response()->json([
+            'data' => [
+                'apply_method' => $job->apply_method,
+                'apply_email' => $job->apply_method === Job::APPLY_EMAIL ? $job->apply_email : null,
+                'apply_url' => $job->apply_method === Job::APPLY_EXTERNAL_URL ? $job->apply_url : null,
+            ],
+        ]);
+    }
+
+    /**
      * Jobs like this one, for the "related" strip on the detail page.
      */
     public function related(string $slug): JsonResponse
@@ -306,10 +336,11 @@ class PublicJobController extends Controller
             'benefits' => $job->benefits,
 
             /*
-             * How to apply, but never where. The destination is returned only
-             * by the apply endpoint, which records the click first — putting
-             * it here would let the link be scraped straight out of the page
-             * and leave the employer's click figures wrong.
+             * How to apply, but never where here. This response is cached by
+             * the frontend's server-side fetch with no session attached, so
+             * it cannot vary per visitor — the actual destination is fetched
+             * separately, client-side, by applyTarget() below, which does see
+             * the visitor's session and is never cached.
              */
             'apply_method' => $job->apply_method,
 

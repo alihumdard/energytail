@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Send } from "lucide-react";
+import { ExternalLink, Loader2, Mail, Send } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
+
+interface ApplyTarget {
+  apply_method: string;
+  apply_email: string | null;
+  apply_url: string | null;
+}
 
 /**
  * Sends a candidate to the employer, recording the click on the way past.
  *
  * Applications leave the platform — the plan has no applicant tracking — so
- * this is a click-through, not a form. The destination is deliberately not in
- * the page payload: it comes back from the API only once the click is
- * recorded, which is the only performance figure an employer gets.
+ * this is a click-through, not a form. The destination is not in the job
+ * page's own payload, because that response is cached with no session
+ * attached and cannot vary per visitor. A signed-in job seeker instead sees
+ * it up front via a separate, uncached, session-aware lookup — clicking
+ * "Apply Now" still records the click and returns the target the same way
+ * for everyone, signed in or not.
  */
 export default function ApplyButton({
   slug,
@@ -26,6 +35,26 @@ export default function ApplyButton({
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [target, setTarget] = useState<ApplyTarget | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+
+    apiFetch<{ data: ApplyTarget | null }>(`/jobs/${slug}/apply-target`)
+      .then(({ data }) => {
+        if (!cancelled) setTarget(data);
+      })
+      .catch(() => {
+        // Silent: the button still works without this preview — the click
+        // itself is what resolves the destination.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, slug]);
 
   async function apply() {
     setBusy(true);
@@ -86,6 +115,30 @@ export default function ApplyButton({
       {method === "external_url" && (
         <p className="mt-2 text-center text-xs text-slate-400">
           Applications are handled on the employer&apos;s own site.
+        </p>
+      )}
+
+      {target?.apply_email && (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          Apply by email:{" "}
+          <a href={`mailto:${target.apply_email}`} className="font-medium text-blue-600 hover:underline">
+            {target.apply_email}
+          </a>
+        </p>
+      )}
+
+      {target?.apply_url && (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+          <a
+            href={target.apply_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            {target.apply_url}
+          </a>
         </p>
       )}
 

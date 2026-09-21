@@ -293,6 +293,7 @@ Route::prefix('jobs')->name('api.jobs.')->group(function () {
     Route::get('/', [PublicJobController::class, 'index'])->name('index');
     Route::get('/{slug}', [PublicJobController::class, 'show'])->name('show');
     Route::get('/{slug}/related', [PublicJobController::class, 'related'])->name('related');
+    Route::get('/{slug}/apply-target', [PublicJobController::class, 'applyTarget'])->name('apply_target');
 });
 
 /*
