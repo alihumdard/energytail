@@ -416,8 +416,8 @@ const darkFooterCols = [
     items: [
       { label: "Browse Jobs", href: "/jobs" },
       { label: "Create Profile", href: "/register" },
-      { label: "Saved Jobs", href: "/jobs" },
-      { label: "Job Alerts", href: "/jobs" },
+      { label: "Saved Jobs", href: "/saved-jobs" },
+      { label: "Job Alerts", href: "/job-alerts" },
       { label: "Career Advice", href: "/articles" },
     ],
   },
@@ -425,7 +425,7 @@ const darkFooterCols = [
     title: "For Employers",
     items: [
       { label: "Post a Job", href: "/employer-dashboard" },
-      { label: "Packages & Pricing", href: "/register" },
+      { label: "Packages & Pricing", href: "/pricing" },
       { label: "Employer Dashboard", href: "/employer-dashboard" },
       { label: "Company Profile", href: "/employer/company-profile" },
       { label: "Search Resumes", href: "/jobs" },
@@ -438,7 +438,7 @@ const darkFooterCols = [
       { label: "Industry News", href: "/articles" },
       { label: "Salary Guide", href: "/jobs" },
       { label: "Companies", href: "/companies" },
-      { label: "Categories", href: "/admin/job-categories" },
+      { label: "Categories", href: "/jobs" },
     ],
   },
   {
@@ -446,9 +446,9 @@ const darkFooterCols = [
     items: [
       { label: "About Us", href: "/" },
       { label: "Contact Us", href: "/login" },
-      { label: "Terms of Use", href: "/register" },
-      { label: "Privacy Policy", href: "/register" },
-      { label: "Sitemap", href: "/" },
+      { label: "Terms of Use", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Sitemap", href: "/sitemap.xml" },
     ],
   },
 ];
