@@ -10,6 +10,7 @@ import {
   Pencil,
   Ban,
   RotateCcw,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -264,6 +265,36 @@ export default function UsersManagementPage() {
           : err instanceof Error
             ? err.message
             : "Could not update the user.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteUser(user: User) {
+    // Backend soft-deletes: audit rows and any jobs/articles the user
+    // authored reference them, and a hard delete would orphan those. The
+    // row just disappears from this list rather than the row count going
+    // to zero and back — confirming here is the only guard against that.
+    const confirmed = window.confirm(
+      `Delete ${user.full_name}? This removes them from the active user list. Their existing jobs, articles and audit history are kept.`,
+    );
+    if (!confirmed) return;
+
+    setBusyId(user.id);
+    setActionError(null);
+
+    try {
+      await adminUsers.remove(user.id);
+      refetch();
+      refetchStats();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError
+          ? err.detail
+          : err instanceof Error
+            ? err.message
+            : "Could not delete the user.",
       );
     } finally {
       setBusyId(null);
@@ -548,6 +579,14 @@ export default function UsersManagementPage() {
                               ) : (
                                 <RotateCcw className="w-4 h-4" />
                               )}
+                            </button>
+                            <button
+                              onClick={() => deleteUser(u)}
+                              disabled={busyId === u.id}
+                              title="Delete"
+                              className="p-1.5 rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
