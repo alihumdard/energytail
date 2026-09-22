@@ -77,7 +77,18 @@ class AppServiceProvider extends ServiceProvider
             $email = mb_strtolower((string) $request->input('email', ''));
             $key = $email !== '' ? $email.'|'.$request->ip() : (string) $request->ip();
 
-            return Limit::perMinute(5)->by($key)->response(function () {
+            return Limit::perMinute(5)->by($key)->response(function () use ($request) {
+                // /social/{provider}/redirect is a full-page <a href> navigation,
+                // not a fetch call — a JSON body here renders as a raw API
+                // response in the browser instead of reaching the frontend's
+                // error handling. Sending it back to the callback page with an
+                // error code lets AuthCallbackPage show its normal error card.
+                if ($request->routeIs('social.redirect')) {
+                    $frontend = rtrim((string) config('app.frontend_url'), '/');
+
+                    return redirect()->away($frontend.'/auth/callback?error=too_many_requests');
+                }
+
                 return response()->json([
                     'message' => 'Too many attempts. Please wait a minute and try again.',
                     'code' => 'too_many_requests',

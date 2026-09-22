@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   social_failed: "We could not complete sign-in with that provider. Please try again.",
   account_suspended: "This account has been suspended. Contact support for help.",
   unsupported_provider: "That sign-in provider is not available.",
+  too_many_requests: "Too many attempts. Please wait a minute and try again.",
 };
 
 function landingFor(user: User): string {
