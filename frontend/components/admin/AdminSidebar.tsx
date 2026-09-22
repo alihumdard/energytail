@@ -227,7 +227,7 @@ function SidebarInner({ active }: { active: AdminNavKey }) {
     <>
       <div className="h-[65px] flex items-center gap-2.5 px-5 border-b border-slate-100 shrink-0">
         <img
-          src="/logo.png"
+          src="/logo-trimmed.png"
           alt="Energy Tail"
           className="h-9 w-auto object-contain"
         />

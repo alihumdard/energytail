@@ -107,7 +107,7 @@ export default function DashboardShell({
 
         <Link href="/" className="flex shrink-0 items-center">
           <img
-            src="/logo.png"
+            src="/logo-trimmed.png"
             alt="Energy Tail"
             className="h-9 w-auto object-contain"
           />
