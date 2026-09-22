@@ -27,6 +27,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Nginx terminates TLS and proxies to PHP-FPM over plain HTTP, so
+        // without this Laravel sees every request as HTTP — $request->isSecure()
+        // is false, the "Secure" cookie flag never gets set, and a browser
+        // refuses to store or send a SameSite=None cookie without it. That
+        // silently drops the session on every cross-subdomain request between
+        // energytail.com and api.energytail.com, including a plain login,
+        // and surfaces as a CSRF token mismatch. '*' trusts the proxy in
+        // front of this app (this VPS's own Nginx), not arbitrary clients —
+        // a client can't set X-Forwarded-Proto for itself from outside it.
+        $middleware->trustProxies(at: '*');
+
         // Cookie-based SPA auth for the Next.js frontend. Mobile clients use
         // bearer tokens instead and skip this path entirely.
         $middleware->statefulApi();
