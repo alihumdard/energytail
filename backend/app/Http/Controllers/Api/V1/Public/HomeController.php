@@ -66,11 +66,11 @@ class HomeController extends Controller
      * has to sum every child under it — counting only jobs.job_category_id
      * matches against the parent row would show every group as empty.
      *
-     * Only featured parents are eligible: is_featured is the admin's own
-     * on/off switch for this list, not a suggestion — unchecking it should
-     * take the tile off the homepage regardless of how many jobs sit under
-     * it. The count is still what makes a featured tile worth clicking, so
-     * one leading to an empty board is left out too.
+     * is_featured is the admin's own on/off switch for this list, and the
+     * only thing that decides what appears here — a featured group with no
+     * jobs yet still gets its tile, showing "0 jobs". Hiding those made the
+     * toggle look broken: ticking Featured on a new group appeared to do
+     * nothing until somebody happened to post under it.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -93,7 +93,6 @@ class HomeController extends Controller
             ->whereNull('parent.deleted_at')
             ->selectRaw('parent.name, parent.slug, parent.emoji, parent.color, count(jobs.id) as jobs_count')
             ->groupBy('parent.id', 'parent.name', 'parent.slug', 'parent.emoji', 'parent.color')
-            ->havingRaw('count(jobs.id) > 0')
             ->orderByDesc('jobs_count')
             ->orderBy('parent.name')
             ->limit(8)
