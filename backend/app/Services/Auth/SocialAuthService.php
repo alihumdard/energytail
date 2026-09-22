@@ -65,9 +65,15 @@ class SocialAuthService
                 return $existingLink->user;
             }
 
-            $user = User::where('email', $email)->first();
+            // withTrashed(): a soft-deleted account still owns its email, and
+            // a plain lookup can't see past that scope — it would try to
+            // insert a fresh row and collide with the unique constraint the
+            // trashed one still holds.
+            $user = User::withTrashed()->where('email', $email)->first();
 
-            if (! $user) {
+            if ($user && $user->trashed()) {
+                $user->restore();
+            } elseif (! $user) {
                 $user = $this->createFromSocialite($socialiteUser, $email, $defaultRole);
             }
 

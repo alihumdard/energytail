@@ -55,17 +55,10 @@ class SocialAuthController extends Controller
         try {
             $socialiteUser = Socialite::driver($this->social->driverFor($provider))->user();
 
-            $pulledRole = $request->session()->pull('social_signup_role', 'job_seeker');
-            \Illuminate\Support\Facades\Log::info('social callback role debug', [
-                'session_id' => $request->session()->getId(),
-                'pulled_role' => $pulledRole,
-                'all_session_keys' => array_keys($request->session()->all()),
-            ]);
-
             $user = $this->social->findOrCreateUser(
                 $provider,
                 $socialiteUser,
-                $pulledRole,
+                $request->session()->pull('social_signup_role', 'job_seeker'),
             );
         } catch (Throwable $e) {
             report($e);
