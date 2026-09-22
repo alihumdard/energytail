@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Cookie\Middleware\EncryptCookies;
+use App\Http\Middleware\NullMiddleware;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession;
 use Laravel\Sanctum\Sanctum;
@@ -80,7 +80,19 @@ return [
 
     'middleware' => [
         'authenticate_session' => AuthenticateSession::class,
-        'encrypt_cookies' => EncryptCookies::class,
+
+        // bootstrap/app.php already runs EncryptCookies unconditionally on
+        // every API request, before this middleware's own inner pipeline
+        // (EnsureFrontendRequestsAreStateful::frontendMiddleware()) would
+        // run a second copy of it. That second pass tried to decrypt a
+        // cookie value the first pass had already decrypted, always failed,
+        // and silently nulled the session cookie right before its own
+        // StartSession ran — starting a second, unrelated session for the
+        // rest of the request. That's what broke the OAuth "state" check:
+        // the value redirect() wrote landed in one session, and callback()
+        // read from another. A no-op here removes the second pass.
+        'encrypt_cookies' => NullMiddleware::class,
+
         'validate_csrf_token' => ValidateCsrfToken::class,
     ],
 
