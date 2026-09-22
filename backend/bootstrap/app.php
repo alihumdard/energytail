@@ -3,6 +3,7 @@
 use App\Exceptions\ApiExceptionRenderer;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride;
 use App\Http\Middleware\EnsureGuestForApi;
 use App\Http\Middleware\VerifyCaptcha;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -12,6 +13,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\StartSession;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -49,6 +51,17 @@ return Application::configure(basePath: dirname(__DIR__))
             AddQueuedCookiesToResponse::class,
             StartSession::class,
         ]);
+
+        // Sanctum's own EnsureFrontendRequestsAreStateful hardcodes the
+        // session cookie's SameSite to 'lax' on every request, which drops
+        // it on cross-subdomain fetch() calls between energytail.com and
+        // api.energytail.com — see the replacement class for the failure
+        // this caused (CSRF token mismatch on ordinary admin API calls).
+        $middleware->replaceInGroup(
+            'api',
+            EnsureFrontendRequestsAreStateful::class,
+            EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride::class,
+        );
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
