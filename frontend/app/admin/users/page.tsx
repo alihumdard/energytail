@@ -156,7 +156,9 @@ export default function UsersManagementPage() {
    * second request.
    */
   const [dialog, setDialog] = useState<
-    { mode: "create" } | { mode: "edit" | "view"; user: User } | null
+    | { mode: "create" }
+    | { mode: "edit" | "view" | "delete"; user: User }
+    | null
   >(null);
 
   /**
@@ -272,20 +274,12 @@ export default function UsersManagementPage() {
   }
 
   async function deleteUser(user: User) {
-    // Backend soft-deletes: audit rows and any jobs/articles the user
-    // authored reference them, and a hard delete would orphan those. The
-    // row just disappears from this list rather than the row count going
-    // to zero and back — confirming here is the only guard against that.
-    const confirmed = window.confirm(
-      `Delete ${user.full_name}? This removes them from the active user list. Their existing jobs, articles and audit history are kept.`,
-    );
-    if (!confirmed) return;
-
     setBusyId(user.id);
     setActionError(null);
 
     try {
       await adminUsers.remove(user.id);
+      setDialog(null);
       refetch();
       refetchStats();
     } catch (err) {
@@ -581,7 +575,9 @@ export default function UsersManagementPage() {
                               )}
                             </button>
                             <button
-                              onClick={() => deleteUser(u)}
+                              onClick={() =>
+                                setDialog({ mode: "delete", user: u })
+                              }
                               disabled={busyId === u.id}
                               title="Delete"
                               className="p-1.5 rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
@@ -800,6 +796,43 @@ export default function UsersManagementPage() {
             refetchStats();
           }}
         />
+      )}
+
+      {dialog?.mode === "delete" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50">
+                <Trash2 className="h-4 w-4 text-red-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900">
+                  Delete {dialog.user.full_name}?
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  This removes them from the active user list. Their existing
+                  jobs, articles and audit history are kept.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDialog(null)}
+                disabled={busyId === dialog.user.id}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteUser(dialog.user)}
+                disabled={busyId === dialog.user.id}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                {busyId === dialog.user.id ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminShell>
   );
