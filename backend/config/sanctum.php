@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession;
 use Laravel\Sanctum\Sanctum;
@@ -77,16 +78,9 @@ return [
     |
     */
 
-    /*
-     * encrypt_cookies has no entry here on purpose: App\Http\Middleware\
-     * EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride (see
-     * bootstrap/app.php) drops EncryptCookies and StartSession from its
-     * inner pipeline entirely, rather than pointing this at a no-op —
-     * both already run once, unconditionally, before Sanctum's middleware
-     * does. See that class for why running them twice broke sessions.
-     */
     'middleware' => [
         'authenticate_session' => AuthenticateSession::class,
+        'encrypt_cookies' => EncryptCookies::class,
         'validate_csrf_token' => ValidateCsrfToken::class,
     ],
 

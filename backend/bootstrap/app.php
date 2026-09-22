@@ -6,13 +6,10 @@ use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride;
 use App\Http\Middleware\EnsureGuestForApi;
 use App\Http\Middleware\VerifyCaptcha;
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
-use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Session\Middleware\StartSession;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -38,36 +35,19 @@ return Application::configure(basePath: dirname(__DIR__))
         // a client can't set X-Forwarded-Proto for itself from outside it.
         $middleware->trustProxies(at: '*');
 
-        // Cookie-based SPA auth for the Next.js frontend. Mobile clients use
-        // bearer tokens instead and skip this path entirely.
+        // Cookie-based SPA auth for the Next.js frontend. This registers
+        // Sanctum's middleware, which owns the whole session pipeline for
+        // API routes: EncryptCookies, StartSession and CSRF all run inside
+        // it. Laravel's middleware priority deliberately sorts it ahead of
+        // those, so adding a second copy of them here would run them in the
+        // wrong order — before it, not inside it.
         $middleware->statefulApi();
 
-        // statefulApi() only attaches session state to requests whose origin
-        // matches SANCTUM_STATEFUL_DOMAINS. Sessions are needed on every API
-        // request here, because login, registration and the OAuth round trip
-        // all depend on one. Without this the session store is never set and
-        // those endpoints fail outright.
-        //
-        // EncryptCookies has to run unconditionally too, not just when
-        // statefulApi() decides a request is "from the frontend" (it checks
-        // Origin/Referer). The OAuth round trip breaks otherwise: the
-        // redirect to Google carries a Referer of energytail.com, so that
-        // request gets an encrypted session cookie, but Google's callback
-        // carries a Referer of accounts.google.com — statefulApi() would
-        // treat that as third-party and skip encryption, so Laravel reads
-        // back a cookie it never encrypted and starts a blank session,
-        // taking the OAuth "state" it needs to validate the callback with it.
-        $middleware->api(prepend: [
-            EncryptCookies::class,
-            AddQueuedCookiesToResponse::class,
-            StartSession::class,
-        ]);
-
-        // Sanctum's own EnsureFrontendRequestsAreStateful hardcodes the
-        // session cookie's SameSite to 'lax' on every request, which drops
-        // it on cross-subdomain fetch() calls between energytail.com and
-        // api.energytail.com — see the replacement class for the failure
-        // this caused (CSRF token mismatch on ordinary admin API calls).
+        // Two things about Sanctum's own version make it wrong here, both
+        // explained in the replacement: it forces the session cookie's
+        // SameSite to 'lax' regardless of SESSION_SAME_SITE, and it skips
+        // session handling for requests whose Origin/Referer isn't the
+        // frontend — which the OAuth callback, arriving from Google, is.
         $middleware->replaceInGroup(
             'api',
             EnsureFrontendRequestsAreStateful::class,

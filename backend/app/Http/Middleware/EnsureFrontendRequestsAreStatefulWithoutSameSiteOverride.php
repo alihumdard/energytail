@@ -7,59 +7,47 @@ namespace App\Http\Middleware;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 /**
- * Same as Sanctum's own middleware, minus its hardcoded same_site override.
+ * Sanctum's stateful middleware, with two of its decisions overridden.
  *
- * The parent's configureSecureCookieSessions() forces session.same_site to
- * 'lax' on every request, no matter what SESSION_SAME_SITE says. That is
- * wrong here: the frontend (energytail.com) calls the API on a different
- * subdomain (api.energytail.com), and a fetch() request — unlike the OAuth
- * redirect's top-level navigation — is a cross-site request under the
- * SameSite spec. A Lax session cookie is not sent on those at all, so the
- * backend silently sees a guest, starts a fresh session for the request,
- * and the CSRF token bound to it never matches the one already embedded in
- * the page — surfacing as "CSRF token mismatch" on API calls like this
- * one, seemingly at random.
- *
- * .env's SESSION_SAME_SITE=none is what these cross-subdomain requests
- * actually need, so this middleware just doesn't touch it.
+ * Everything else — the order EncryptCookies, StartSession and CSRF run in,
+ * and the fact that they run inside this middleware rather than beside it —
+ * is left alone. Laravel's middleware priority sorts this class ahead of
+ * those three, so registering them in the api group as well would run them
+ * before this, outside the pipeline that expects to own them.
  */
 class EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride extends EnsureFrontendRequestsAreStateful
 {
+    /**
+     * Leaves session.same_site alone, where the parent forces it to 'lax'.
+     *
+     * The frontend (energytail.com) calls the API on another subdomain
+     * (api.energytail.com), so a fetch() from it is a cross-site request —
+     * unlike the OAuth redirect, which is a top-level navigation Lax allows.
+     * A Lax cookie is never sent on those calls, so the backend saw a guest,
+     * started a fresh session, and the CSRF token bound to it never matched
+     * the one the page already held: "CSRF token mismatch" on ordinary API
+     * calls. SESSION_SAME_SITE=none in .env is what this setup needs.
+     */
     protected function configureSecureCookieSessions()
     {
         //
     }
 
     /**
-     * Drops EncryptCookies and StartSession from the inner pipeline.
+     * Runs the parent's pipeline for every API request, not just "frontend" ones.
      *
-     * Both already ran once, unconditionally, in bootstrap/app.php before
-     * this middleware — that's what makes the OAuth callback and the CSRF
-     * cookie work at all, since the request isn't always "from the
-     * frontend" by Origin/Referer. Running them again here is not just
-     * redundant: this inner StartSession's own response-side save/cookie
-     * step runs after the outer EncryptCookies has already queued its
-     * encrypted cookie, appending a second, unencrypted one that wins —
-     * which is what a plain (non-JSON) session cookie in the response
-     * meant, and why the browser and the next request disagreed on the
-     * session's contents (CSRF token mismatch, seemingly at random).
+     * The parent decides by Origin/Referer against SANCTUM_STATEFUL_DOMAINS,
+     * and skips session handling entirely when that doesn't match. The OAuth
+     * callback is exactly that case — it arrives from accounts.google.com —
+     * so it got no session, and the "state" this app stored before
+     * redirecting to Google was unreadable on the way back.
      *
-     * Only the CSRF and auth-session middleware in the parent's list
-     * actually need to run inside this "is it the frontend" branch.
+     * Nothing here is bearer-token-only, so there is no request that needs
+     * the parent's skip: a client without a session cookie simply starts a
+     * new session, as it would on any web route.
      */
-    protected function frontendMiddleware()
+    public static function fromFrontend($request)
     {
-        $middleware = array_values(array_filter(array_unique([
-            config('sanctum.middleware.validate_csrf_token', config('sanctum.middleware.verify_csrf_token', \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class)),
-            config('sanctum.middleware.authenticate_session'),
-        ])));
-
-        array_unshift($middleware, function ($request, $next) {
-            $request->attributes->set('sanctum', true);
-
-            return $next($request);
-        });
-
-        return $middleware;
+        return true;
     }
 }
