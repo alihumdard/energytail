@@ -813,6 +813,11 @@ export default function UsersManagementPage() {
                   This removes them from the active user list. Their existing
                   jobs, articles and audit history are kept.
                 </p>
+                {actionError && (
+                  <p className="mt-2 text-sm font-medium text-red-600">
+                    {actionError}
+                  </p>
+                )}
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
