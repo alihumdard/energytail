@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureGuestForApi;
 use App\Http\Middleware\VerifyCaptcha;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -33,7 +34,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // request here, because login, registration and the OAuth round trip
         // all depend on one. Without this the session store is never set and
         // those endpoints fail outright.
+        //
+        // EncryptCookies has to run unconditionally too, not just when
+        // statefulApi() decides a request is "from the frontend" (it checks
+        // Origin/Referer). The OAuth round trip breaks otherwise: the
+        // redirect to Google carries a Referer of energytail.com, so that
+        // request gets an encrypted session cookie, but Google's callback
+        // carries a Referer of accounts.google.com — statefulApi() would
+        // treat that as third-party and skip encryption, so Laravel reads
+        // back a cookie it never encrypted and starts a blank session,
+        // taking the OAuth "state" it needs to validate the callback with it.
         $middleware->api(prepend: [
+            EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
             StartSession::class,
         ]);
