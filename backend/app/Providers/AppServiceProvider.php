@@ -83,7 +83,7 @@ class AppServiceProvider extends ServiceProvider
                 // response in the browser instead of reaching the frontend's
                 // error handling. Sending it back to the callback page with an
                 // error code lets AuthCallbackPage show its normal error card.
-                if ($request->routeIs('social.redirect')) {
+                if ($request->routeIs('api.auth.social.redirect')) {
                     $frontend = rtrim((string) config('app.frontend_url'), '/');
 
                     return redirect()->away($frontend.'/auth/callback?error=too_many_requests');
