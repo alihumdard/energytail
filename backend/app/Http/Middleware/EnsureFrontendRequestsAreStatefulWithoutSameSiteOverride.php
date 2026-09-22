@@ -29,4 +29,37 @@ class EnsureFrontendRequestsAreStatefulWithoutSameSiteOverride extends EnsureFro
     {
         //
     }
+
+    /**
+     * Drops EncryptCookies and StartSession from the inner pipeline.
+     *
+     * Both already ran once, unconditionally, in bootstrap/app.php before
+     * this middleware — that's what makes the OAuth callback and the CSRF
+     * cookie work at all, since the request isn't always "from the
+     * frontend" by Origin/Referer. Running them again here is not just
+     * redundant: this inner StartSession's own response-side save/cookie
+     * step runs after the outer EncryptCookies has already queued its
+     * encrypted cookie, appending a second, unencrypted one that wins —
+     * which is what a plain (non-JSON) session cookie in the response
+     * meant, and why the browser and the next request disagreed on the
+     * session's contents (CSRF token mismatch, seemingly at random).
+     *
+     * Only the CSRF and auth-session middleware in the parent's list
+     * actually need to run inside this "is it the frontend" branch.
+     */
+    protected function frontendMiddleware()
+    {
+        $middleware = array_values(array_filter(array_unique([
+            config('sanctum.middleware.validate_csrf_token', config('sanctum.middleware.verify_csrf_token', \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class)),
+            config('sanctum.middleware.authenticate_session'),
+        ])));
+
+        array_unshift($middleware, function ($request, $next) {
+            $request->attributes->set('sanctum', true);
+
+            return $next($request);
+        });
+
+        return $middleware;
+    }
 }
