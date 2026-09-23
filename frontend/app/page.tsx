@@ -284,7 +284,7 @@ export default async function HomePage() {
       {categories.length > 0 && (
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-8 flex items-end justify-between">
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                   Browse Jobs by Category
@@ -305,25 +305,58 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {categories.map((c) => {
                 const Icon = CATEGORY_ICONS[c.slug] ?? Briefcase;
 
                 return (
+                  /*
+                    Stacked on a phone, side by side from sm up. In two
+                    columns at 360px a 56px circle and p-5 padding left
+                    barely 60px for the label, so every name was truncated
+                    to a few characters and the tiles read as icons with no
+                    words — "Drilling & Well Operations" became "Dri…".
+                  */
                   <Link
                     key={c.slug}
                     href={`/jobs?category=${c.slug}`}
-                    className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/50"
+                    className="group relative flex flex-col items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/50 sm:flex-row sm:gap-4 sm:p-5 sm:text-left"
                   >
-                    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
-                      <Icon size={26} strokeWidth={1.75} />
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white sm:h-14 sm:w-14">
+                      <Icon size={24} strokeWidth={1.75} className="sm:size-[26px]" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-800">{c.name}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {c.jobs_count} {c.jobs_count === 1 ? "job" : "jobs"}
+
+                    <div className="min-w-0 sm:flex-1">
+                      {/* Wraps to two lines rather than truncating: the name
+                          is the only thing on the tile that identifies it. */}
+                      <p className="text-[13px] font-semibold leading-snug text-slate-800 transition-colors group-hover:text-blue-700 sm:truncate sm:text-[15px]">
+                        {c.name}
+                      </p>
+
+                      {/*
+                        The count carries the weight it earns: it is what a
+                        visitor compares one category against another by,
+                        and as faint grey text it read as a caption. A
+                        category with nothing in it says so plainly rather
+                        than showing "0 jobs" as though that were a result.
+                      */}
+                      <p
+                        className={`mt-1 text-xs font-medium ${
+                          c.jobs_count > 0 ? "text-blue-600" : "text-slate-400"
+                        }`}
+                      >
+                        {c.jobs_count > 0
+                          ? `${c.jobs_count} open ${c.jobs_count === 1 ? "role" : "roles"}`
+                          : "No roles yet"}
                       </p>
                     </div>
+
+                    {/* Hidden on a phone, where the tile is stacked and an
+                        arrow off to one side has nothing to point from. */}
+                    <ArrowRight
+                      size={16}
+                      className="hidden shrink-0 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-blue-600 sm:block"
+                    />
                   </Link>
                 );
               })}
@@ -344,7 +377,7 @@ export default async function HomePage() {
       {jobs.length > 0 && (
         <section className="bg-slate-100 py-16">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-8 flex items-end justify-between">
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                   Latest Opportunities
@@ -475,7 +508,7 @@ export default async function HomePage() {
       {companies.length > 0 && (
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-8 flex items-end justify-between">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8">
             <div>
               <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 Employers Hiring Now
@@ -496,27 +529,45 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 sm:gap-4">
             {companies.map((c) => (
               <Link
                 key={c.slug}
                 href={`/companies/${c.slug}`}
-                className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/50"
+                // Stacked on a phone for the same reason the category tiles
+                // are: beside a 44px logo in a half-width column, every
+                // company name was truncated to a word or two.
+                className="group flex h-full flex-col items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/50 sm:flex-row sm:gap-3 sm:text-left"
               >
                 <img
                   src={c.logo_path || companyFallbackImage(c.slug)}
                   alt=""
-                  className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-slate-200/60"
+                  className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200/60 sm:h-11 sm:w-11"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1 text-sm font-semibold text-slate-800 transition-colors group-hover:text-blue-600">
-                    <span className="truncate">{c.name}</span>
+                  <p className="flex items-center justify-center gap-1 text-[13px] font-semibold text-slate-800 transition-colors group-hover:text-blue-700 sm:justify-start sm:text-sm">
+                    <span className="leading-snug sm:truncate">{c.name}</span>
                     {c.is_verified && (
                       <BadgeCheck size={13} className="shrink-0 text-blue-500" />
                     )}
                   </p>
-                  <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                    {c.open_jobs} open {c.open_jobs === 1 ? "role" : "roles"}
+
+                  {/*
+                    The reason this section exists is that these companies
+                    are hiring, so the count is coloured rather than left as
+                    grey furniture — and a company with nothing open says so
+                    instead of advertising "0 open roles".
+                  */}
+                  <span
+                    className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      c.open_jobs > 0
+                        ? "bg-blue-50 text-blue-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {c.open_jobs > 0
+                      ? `${c.open_jobs} open ${c.open_jobs === 1 ? "role" : "roles"}`
+                      : "No roles yet"}
                   </span>
                 </div>
               </Link>

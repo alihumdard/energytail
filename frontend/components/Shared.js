@@ -471,8 +471,17 @@ export function DarkFooter() {
   return (
     <footer className="bg-[#0B2B26] text-white">
       <div className="mx-auto max-w-7xl px-6 py-14">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
-          <div className="sm:col-span-2 lg:col-span-1">
+        {/*
+          Two columns of links from the narrowest width, not one.
+
+          At grid-cols-1 the four groups stacked into a single column
+          twelve links long, so reaching the bottom of the page on a phone
+          meant scrolling past all of it. The brand block still spans the
+          full width above them — it carries a paragraph and the social
+          row, which do not belong in a half-width column.
+        */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-9 sm:gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
+          <div className="col-span-2 lg:col-span-1">
             <Logo />
             <p className="mt-4 max-w-[280px] text-[12.5px] leading-relaxed text-white/60">
               Connecting energy professionals with top employers worldwide.
