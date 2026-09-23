@@ -18,6 +18,7 @@ import SaveJobButton from "@/components/jobs/SaveJobButton";
 import { SavedJobsProvider } from "@/components/jobs/SavedJobsProvider";
 import { fetchPublic, ServerFetchError } from "@/lib/api/server";
 import { toNumber } from "@/lib/money";
+import { jobThumbnail } from "@/lib/thumbnails";
 import JsonLd from "@/lib/seo/JsonLd";
 import { jobPostingSchema } from "@/lib/seo/jobPosting";
 import { breadcrumbSchema } from "@/lib/seo/schemas";
@@ -158,7 +159,33 @@ export default async function JobDetailPage({
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
           <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-100 bg-white p-6">
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+              {/*
+                A banner above the title, matching the thumbnail the card on
+                the listing showed — so arriving here looks like following
+                the card you clicked rather than landing on a different site.
+              */}
+              <div className="relative h-40 bg-slate-100 sm:h-52">
+                <img
+                  src={jobThumbnail(job.category?.slug ?? null, job.slug)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+                {/* Scrim: the badges below sit close to the image edge, and
+                    a photo's own contrast cannot be relied on. */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
+
+                {job.company && (
+                  <span className="absolute bottom-3 left-4 flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
+                    {job.company.name}
+                    {job.company.is_verified && (
+                      <BadgeCheck className="h-4 w-4 text-blue-500" />
+                    )}
+                  </span>
+                )}
+              </div>
+
+              <div className="p-6">
               <div className="flex flex-wrap items-center gap-2">
                 {job.is_featured && (
                   <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
@@ -228,6 +255,7 @@ export default async function JobDetailPage({
                   />
                 )}
               </dl>
+              </div>
             </div>
 
             <Section title="Job Description" text={job.description} />

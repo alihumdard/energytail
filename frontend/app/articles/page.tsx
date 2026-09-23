@@ -4,6 +4,7 @@ import { Clock, Eye, Star } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
 import { DarkFooter } from "@/components/Shared";
 import { fetchPublic } from "@/lib/api/server";
+import { articleThumbnail } from "@/lib/thumbnails";
 import type { Paginated, PublicArticle, TaxonomyItem } from "@/lib/api/types";
 
 export const metadata: Metadata = {
@@ -70,16 +71,26 @@ export default async function ArticlesPage({
     <>
       <SiteHeader active="Articles" />
 
-      <main className="flex-1 bg-slate-50">
-        <div className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-7xl px-6 py-10">
-            <h1 className="text-3xl font-bold text-slate-900">Insights &amp; Articles</h1>
-            <p className="mt-2 max-w-2xl text-slate-500">
-              Careers advice, market analysis and technical insight for oil, gas
-              and renewable energy professionals.
-            </p>
-          </div>
+      {/* The same dark band the job board opens with, so the two public
+          sections of the site read as one place. It was a white strip on a
+          white page, which gave the eye nothing to start from. */}
+      <section className="relative overflow-hidden bg-[#0B2B26] text-white">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0B2B26] via-[#0B2B26]/90 to-[#123832]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(62,189,62,0.3),transparent_55%)]" />
         </div>
+        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:py-12">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+            Insights &amp; Articles
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-300">
+            Careers advice, market analysis and technical insight for oil, gas
+            and renewable energy professionals.
+          </p>
+        </div>
+      </section>
+
+      <main className="flex-1 bg-slate-50">
 
         <div className="mx-auto max-w-7xl px-6 py-8">
           {/* Category filter */}
@@ -130,8 +141,33 @@ export default async function ArticlesPage({
               {items.map((a) => (
                 <article
                   key={a.id}
-                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-blue-300"
+                  className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg"
                 >
+                  {/*
+                    The article's own featured image when it has one, and a
+                    photo chosen from its category when it does not. The
+                    column has always been on the record and returned by the
+                    API — the card simply never read it, so every post
+                    looked like a wall of text.
+                  */}
+                  <Link
+                    href={`/articles/${a.slug}`}
+                    className="relative block aspect-[16/10] overflow-hidden bg-slate-100"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  >
+                    <img
+                      src={articleThumbnail(
+                        a.featured_image_path,
+                        a.category?.slug ?? null,
+                        a.slug,
+                      )}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </Link>
+
                   <div className="flex flex-1 flex-col p-5">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       {a.category && (

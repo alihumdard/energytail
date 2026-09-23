@@ -8,6 +8,7 @@ import Comments from "@/components/articles/Comments";
 import { fetchPublic, ServerFetchError } from "@/lib/api/server";
 import JsonLd from "@/lib/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/schemas";
+import { articleThumbnail } from "@/lib/thumbnails";
 import type { PublicArticle } from "@/lib/api/types";
 
 interface Props {
@@ -111,6 +112,27 @@ export default async function ArticlePage({ params }: Props) {
             <p className="mt-3 text-lg text-slate-500">{article.excerpt}</p>
           )}
 
+          {/*
+            The lead image, between the headline and the byline where a
+            reader expects it. Uses the article's own featured image when
+            one has been uploaded, and a category photo otherwise — the
+            column has always existed and been served by the API, but no
+            page had ever rendered it.
+          */}
+          <figure className="mt-6 overflow-hidden rounded-2xl bg-slate-100">
+            <img
+              src={articleThumbnail(
+                article.featured_image_path,
+                article.category?.slug ?? null,
+                article.slug,
+              )}
+              // Empty on purpose: the image is decorative, and the API does
+              // not serve the alt text the column stores.
+              alt=""
+              className="aspect-[16/9] w-full object-cover"
+            />
+          </figure>
+
           <div className="mt-5 flex flex-wrap items-center gap-4 border-y border-slate-100 py-3 text-sm text-slate-400">
             {article.author && (
               <span className="font-medium text-slate-600">
@@ -166,19 +188,34 @@ export default async function ArticlePage({ params }: Props) {
                   <Link
                     key={a.id}
                     href={`/articles/${a.slug}`}
-                    className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300"
+                    className="group overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
                   >
-                    {a.category && (
-                      <span className="text-xs font-semibold text-blue-600">
-                        {a.category.name}
-                      </span>
-                    )}
-                    <h3 className="mt-1 font-semibold leading-snug text-slate-900">
-                      {a.title}
-                    </h3>
-                    <p className="mt-2 text-xs text-slate-400">
-                      {formatDate(a.published_at)}
-                    </p>
+                    <div className="aspect-[16/10] overflow-hidden bg-slate-100">
+                      <img
+                        src={articleThumbnail(
+                          a.featured_image_path,
+                          a.category?.slug ?? null,
+                          a.slug,
+                        )}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+
+                    <div className="p-4">
+                      {a.category && (
+                        <span className="text-xs font-semibold text-blue-600">
+                          {a.category.name}
+                        </span>
+                      )}
+                      <h3 className="mt-1 font-semibold leading-snug text-slate-900">
+                        {a.title}
+                      </h3>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {formatDate(a.published_at)}
+                      </p>
+                    </div>
                   </Link>
                 ))}
               </div>

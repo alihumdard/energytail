@@ -3,6 +3,7 @@ import { BadgeCheck, Briefcase, Clock, MapPin, Wallet } from "lucide-react";
 import SaveJobButton from "@/components/jobs/SaveJobButton";
 import type { JobSummary } from "@/lib/api/types";
 import { toNumber } from "@/lib/money";
+import { jobThumbnail } from "@/lib/thumbnails";
 
 /** "Full Time" from "full_time". */
 function humanise(value: string | null): string | null {
@@ -92,10 +93,11 @@ export default function JobCard({ job }: { job: JobSummary }) {
   const salary = salaryLabel(job);
   const experience = experienceLabel(job);
   const posted = relative(job.published_at);
+  const thumbnail = jobThumbnail(job.category?.slug ?? null, job.slug);
 
   return (
     <article
-      className={`group relative rounded-2xl border bg-white p-4 transition-shadow hover:shadow-md sm:p-5 ${
+      className={`group relative overflow-hidden rounded-2xl border bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg ${
         job.is_featured
           ? "border-blue-200 ring-1 ring-blue-100"
           : "border-slate-100"
@@ -112,14 +114,35 @@ export default function JobCard({ job }: { job: JobSummary }) {
         aria-hidden="true"
       />
 
-      <div className="flex items-start gap-3 sm:gap-4">
-        {/* Initials rather than a remote logo: company logos are uploaded
-            files that may not exist yet, and a broken image is worse. */}
-        <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-500">
-          {(job.company?.name ?? "?").slice(0, 2).toUpperCase()}
-        </span>
+      <div className="flex flex-col sm:flex-row">
+        {/*
+          The thumbnail. A banner on mobile and a fixed-width panel from sm
+          up, so the text column keeps a sensible measure on a phone instead
+          of being squeezed beside a picture.
 
-        <div className="min-w-0 flex-1">
+          Plain <img> rather than next/image: these are decorative stand-ins
+          chosen per category, and routing them through the optimiser would
+          mean a remotePatterns entry and a server round trip per card for an
+          image that is already sized for the slot.
+        */}
+        <div className="relative z-10 shrink-0 overflow-hidden bg-slate-100 sm:w-48 lg:w-56">
+          <Link href={`/jobs/${job.slug}`} tabIndex={-1} aria-hidden="true">
+            <img
+              src={thumbnail}
+              alt=""
+              loading="lazy"
+              className="h-40 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-full sm:min-h-[11rem]"
+            />
+          </Link>
+
+          {/* The company mark sits on the image, which is where the eye
+              already is, rather than taking a column of its own. */}
+          <span className="absolute bottom-2 left-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white/95 text-xs font-bold text-slate-600 shadow-sm backdrop-blur">
+            {(job.company?.name ?? "?").slice(0, 2).toUpperCase()}
+          </span>
+        </div>
+
+        <div className="min-w-0 flex-1 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-2">
             <h2 className="truncate text-base font-semibold leading-tight text-slate-900">
               <Link
