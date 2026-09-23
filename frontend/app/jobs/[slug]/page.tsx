@@ -165,64 +165,74 @@ export default async function JobDetailPage({
                 the listing showed — so arriving here looks like following
                 the card you clicked rather than landing on a different site.
               */}
-              <div className="relative h-40 bg-slate-100 sm:h-52">
+              {/*
+                Tall enough to read as a photograph rather than a coloured
+                strip — h-40 cropped these to a band of sky. Sized by ratio
+                so it scales with the column instead of being a fixed height
+                that is generous on a phone and mean on a wide screen, and
+                capped so it cannot push the title below the fold.
+              */}
+              <div className="relative aspect-[16/7] max-h-[26rem] min-h-[13rem] bg-slate-100">
                 <img
                   src={jobThumbnail(job.category?.slug ?? null, job.slug)}
                   alt=""
                   className="h-full w-full object-cover"
                 />
-                {/* Scrim: the badges below sit close to the image edge, and
-                    a photo's own contrast cannot be relied on. */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
 
-                {job.company && (
-                  <span className="absolute bottom-3 left-4 flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
-                    {job.company.name}
-                    {job.company.is_verified && (
-                      <BadgeCheck className="h-4 w-4 text-blue-500" />
-                    )}
-                  </span>
-                )}
+                {/*
+                  The title sits on the image rather than under it. Below, it
+                  read as a caption to a photo the reader had already passed;
+                  on it, the photo is the header of the thing being named.
+                  The scrim is what makes white text safe over a photograph
+                  whose own contrast cannot be relied on.
+                */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/5" />
+
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                  {(job.is_featured || job.is_urgent || job.is_remote) && (
+                    <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                      {job.is_featured && (
+                        <span className="rounded-full bg-blue-500 px-2.5 py-0.5 text-xs font-semibold text-white">
+                          Featured
+                        </span>
+                      )}
+                      {job.is_urgent && (
+                        <span className="rounded-full bg-red-500 px-2.5 py-0.5 text-xs font-semibold text-white">
+                          Urgent
+                        </span>
+                      )}
+                      {job.is_remote && (
+                        <span className="rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-semibold text-white">
+                          Remote
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <h1 className="text-2xl font-bold leading-tight text-white drop-shadow-sm sm:text-3xl">
+                    {job.title}
+                  </h1>
+
+                  {/* One company line, not two: it was printed on the image
+                      and again directly beneath it. */}
+                  {job.company && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-200">
+                      <Link
+                        href={`/companies/${job.company.slug}`}
+                        className="font-semibold transition-colors hover:text-white"
+                      >
+                        {job.company.name}
+                      </Link>
+                      {job.company.is_verified && (
+                        <BadgeCheck className="h-4 w-4 text-blue-300" />
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="p-6">
-              <div className="flex flex-wrap items-center gap-2">
-                {job.is_featured && (
-                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
-                    Featured
-                  </span>
-                )}
-                {job.is_urgent && (
-                  <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-600">
-                    Urgent
-                  </span>
-                )}
-                {job.is_remote && (
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
-                    Remote
-                  </span>
-                )}
-              </div>
-
-              <h1 className="mt-2 text-2xl font-bold text-slate-900">
-                {job.title}
-              </h1>
-
-              {job.company && (
-                <p className="mt-1 flex items-center gap-1.5 text-slate-600">
-                  <Link
-                    href={`/companies/${job.company.slug}`}
-                    className="font-medium hover:text-blue-600"
-                  >
-                    {job.company.name}
-                  </Link>
-                  {job.company.is_verified && (
-                    <BadgeCheck className="h-4 w-4 text-blue-500" />
-                  )}
-                </p>
-              )}
-
-              <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-50 pt-4 text-sm sm:grid-cols-2">
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 {location && (
                   <Fact icon={MapPin} label="Location" value={location} />
                 )}
@@ -265,13 +275,18 @@ export default async function JobDetailPage({
 
             {job.skills.length > 0 && (
               <div className="rounded-2xl border border-slate-100 bg-white p-6">
-                <h2 className="font-semibold text-slate-900">Skills</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <h2 className="font-semibold text-slate-900">
+                  Skills &amp; Expertise
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Tap a skill to see other roles that ask for it.
+                </p>
+                <div className="mt-3.5 flex flex-wrap gap-2">
                   {job.skills.map((s) => (
                     <Link
                       key={s.slug}
                       href={`/jobs?skill=${s.slug}`}
-                      className="rounded-lg bg-slate-50 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
                     >
                       {s.name}
                     </Link>
@@ -281,7 +296,9 @@ export default async function JobDetailPage({
             )}
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-4">
+          {/* Offset by the header's real height, as the board's filter
+              sidebar is. lg:top-4 pinned the apply panel 101px under it. */}
+          <aside className="space-y-4 lg:sticky lg:top-[calc(var(--site-header-height)+1rem)]">
             <div className="rounded-2xl border border-slate-100 bg-white p-5">
               <ApplyButton slug={job.slug} method={job.apply_method} />
 
@@ -389,11 +406,21 @@ function Fact({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-2.5">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+    <div className="flex items-start gap-3 rounded-xl bg-slate-50 px-3.5 py-3">
+      {/* On its own tinted tile: these four facts are the whole body of the
+          header card now that the title has moved onto the image, and as
+          loose rows they read as a footnote to it. */}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm">
+        <Icon className="h-4 w-4" />
+      </span>
       <div className="min-w-0">
-        <dt className="text-xs text-slate-400">{label}</dt>
-        <dd className="truncate font-medium text-slate-700">{value}</dd>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          {label}
+        </dt>
+        {/* Wraps: a salary range or a long location was being cut off. */}
+        <dd className="mt-0.5 font-semibold leading-snug text-slate-800">
+          {value}
+        </dd>
       </div>
     </div>
   );
