@@ -151,8 +151,19 @@ function salaryLabel(job: HomePayload["featured_jobs"][number]): string | null {
  * content already in the HTML.
  */
 export default async function HomePage() {
+  /*
+   * Short, because this is the second of two caches in front of the same
+   * data. The API caches the payload itself and drops it the moment an admin
+   * edits a category, so a longer window here would hold a copy the backend
+   * has already thrown away — an admin ticking "Featured" saw nothing change
+   * for minutes, in a fresh incognito window too, since both caches sit on
+   * the server where a hard refresh cannot reach them.
+   *
+   * Cheap to keep short: a miss here is served from the API's own cache, not
+   * from the database.
+   */
   const { data } = await fetchPublic<{ data: HomePayload }>("/home", {
-    revalidate: 300,
+    revalidate: 30,
   });
 
   const { stats, categories, featured_jobs: jobs, companies, articles } = data;

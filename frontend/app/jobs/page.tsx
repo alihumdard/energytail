@@ -61,20 +61,29 @@ export default async function JobsPage({
   const sortRaw = Array.isArray(params.sort) ? params.sort[0] : params.sort;
   const sort = sortRaw === "salary" ? "salary" : "";
 
-  // Filter options come from the same taxonomy the admin panel manages, so
-  // deactivating a country there removes it from this page too.
+  /*
+   * Filter options come from the same taxonomy the admin panel manages, so
+   * deactivating a country there removes it from this page too.
+   *
+   * Kept short for that reason: the API already caches these lists and drops
+   * them the moment an admin edits one, so a long window here would serve a
+   * copy the backend has already discarded — an edit appearing to do nothing
+   * for the best part of an hour, in a fresh incognito window as much as any
+   * other, since this cache is on the server. A miss is answered from the
+   * API's own cache rather than the database.
+   */
   const [jobs, countries, categories, industries] = await Promise.all([
     fetchPublic<Paginated<JobSummary>>("/jobs", {
       params: { ...active, ...(sort ? { sort } : {}), page, per_page: 15 },
     }),
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/countries", {
-      revalidate: 3600,
+      revalidate: 30,
     }),
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/job-categories", {
-      revalidate: 3600,
+      revalidate: 30,
     }),
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/industries", {
-      revalidate: 3600,
+      revalidate: 30,
     }),
   ]);
 
