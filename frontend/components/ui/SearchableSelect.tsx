@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
 export interface SelectOption {
@@ -57,9 +58,27 @@ export default function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [dropUp, setDropUp] = useState(false);
+
+  /**
+   * Where to paint the list, in viewport coordinates.
+   *
+   * The list is rendered through a portal on document.body rather than
+   * beside the control. A sticky ancestor — the job board's filter sidebar
+   * is one — creates a stacking context its children can never escape, so
+   * an in-place dropdown slid under the sticky header no matter how high
+   * its z-index went. On the body it has no such ancestor, but it also no
+   * longer inherits the control's position, so that has to be measured.
+   */
+  const [box, setBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    dropUp: boolean;
+  } | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  /** The portalled panel, which is outside rootRef's subtree. */
+  const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -82,13 +101,21 @@ export default function SearchableSelect({
     );
   }, [options, query]);
 
-  // Close on an outside click or a scroll that would leave the list floating
-  // away from its control.
+  // Close on a click outside both the control and its list.
   useEffect(() => {
     if (!open) return;
 
     function onPointerDown(event: MouseEvent | TouchEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+
+      // The list lives on document.body now, so it is not inside the
+      // control — testing only the control would count every click on an
+      // option as "outside" and close the list before the choice landed.
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) {
+        return;
+      }
+
+      setOpen(false);
     }
 
     document.addEventListener("mousedown", onPointerDown);
@@ -100,18 +127,44 @@ export default function SearchableSelect({
     };
   }, [open]);
 
-  // Open upwards when the space below is too small to show the list — inside
-  // a modal near the bottom of the viewport, that is the normal case.
-  useEffect(() => {
-    if (!open || !rootRef.current) return;
+  /** Measures the control so the portalled list can sit against it. */
+  const place = useCallback(() => {
+    const control = rootRef.current;
+    if (!control) return;
 
-    const box = rootRef.current.getBoundingClientRect();
-    setDropUp(window.innerHeight - box.bottom < 280 && box.top > 280);
+    const rect = control.getBoundingClientRect();
+    // Open upwards when the space below is too small — near the bottom of
+    // the viewport, or inside a modal, that is the normal case.
+    const dropUp = window.innerHeight - rect.bottom < 280 && rect.top > 280;
+
+    setBox({
+      left: rect.left,
+      top: dropUp ? rect.top : rect.bottom,
+      width: rect.width,
+      dropUp,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    place();
+
+    // Fixed coordinates are a snapshot, so they have to be retaken while
+    // the page moves under them. Capture phase catches scrolling inside
+    // any container, not just the window.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
 
     // Focusing the search box is what makes typing work without a second
     // click; without a search box the list itself takes focus.
     searchRef.current?.focus();
-  }, [open]);
+
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
 
   // Keep the highlighted row in view as the arrows walk past the fold.
   useEffect(() => {
@@ -123,7 +176,9 @@ export default function SearchableSelect({
   }, [active, open]);
 
   function openList() {
-    if (disabled) return;
+    // No document to portal into on the server; the list only ever opens
+    // in response to a click, so this is a guard rather than a real case.
+    if (disabled || typeof document === "undefined") return;
 
     setQuery("");
     setActive(Math.max(0, matches.findIndex((o) => o === selected)));
@@ -230,11 +285,23 @@ export default function SearchableSelect({
         )}
       </button>
 
-      {open && (
+      {open &&
+        box &&
+        createPortal(
         <div
-          className={`absolute z-20 w-full rounded-lg border border-slate-200 bg-white shadow-lg ${
-            dropUp ? "bottom-full mb-1" : "top-full mt-1"
-          }`}
+          ref={panelRef}
+          // Fixed and on the body, above the sticky header's z-50. Placed
+          // by measurement rather than by CSS, since it no longer shares a
+          // containing block with the control it belongs to.
+          style={{
+            position: "fixed",
+            left: box.left,
+            width: box.width,
+            ...(box.dropUp
+              ? { bottom: window.innerHeight - box.top + 4 }
+              : { top: box.top + 4 }),
+          }}
+          className="z-[60] rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           {searchable && (
             <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
@@ -298,8 +365,9 @@ export default function SearchableSelect({
               );
             })}
           </ul>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }
