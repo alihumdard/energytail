@@ -33,6 +33,17 @@ export interface TaxonomyField {
    * rejects.
    */
   nullable?: boolean;
+  /**
+   * Whether this field applies, given what the rest of the form holds.
+   *
+   * For a setting that only means something in combination with another —
+   * a category's "Featured", which does nothing unless the category is
+   * top-level — hiding it beats letting it be ticked and then ignored.
+   *
+   * A hidden checkbox submits false rather than being left out, so turning
+   * one off is a save away and not a state the form can no longer reach.
+   */
+  showWhen?: (values: Record<string, unknown>) => boolean;
 }
 
 interface Props {
@@ -114,6 +125,16 @@ export default function TaxonomyFormModal({
       const payload: Record<string, unknown> = {};
 
       for (const field of fields) {
+        // A field the form is hiding must not carry a value the user can no
+        // longer see to change. A checkbox turns off — otherwise a category
+        // that was featured would stay featured once given a parent, with
+        // nothing on screen admitting it. Anything else is left out.
+        if (field.showWhen && !field.showWhen(values)) {
+          if (field.type === "checkbox") payload[field.name] = false;
+
+          continue;
+        }
+
         const value = values[field.name];
 
         if (value === "" && !field.required) {
@@ -141,7 +162,11 @@ export default function TaxonomyFormModal({
 
   // Any error the API raises against a field the form does not show has to
   // reach the banner, or saving fails with nothing on screen to explain it.
-  const shown = new Set(fields.map((f) => f.name));
+  const shown = new Set(
+    fields
+      .filter((f) => !f.showWhen || f.showWhen(values))
+      .map((f) => f.name),
+  );
   const hasInline = [...shown].some((name) => error?.fieldError(name));
   const generalError = error && !hasInline ? error.detail : null;
 
@@ -175,6 +200,8 @@ export default function TaxonomyFormModal({
           )}
 
           {fields.map((field) => {
+            if (field.showWhen && !field.showWhen(values)) return null;
+
             const fieldError = error?.fieldError(field.name);
             const value = values[field.name];
             const options = field.options ?? loaded[field.name] ?? [];

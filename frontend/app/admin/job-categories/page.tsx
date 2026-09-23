@@ -51,7 +51,12 @@ export default function JobCategoriesPage() {
           name: "is_featured",
           label: "Featured",
           type: "checkbox",
-          hint: "Gives this category a tile on the homepage. Top-level categories only — a category with a parent will not appear there.",
+          hint: "Gives this category a tile on the homepage.",
+          // Only top-level categories get a tile, so for a sub-category this
+          // setting does nothing — offering it invites ticking it and then
+          // wondering why the homepage ignores it. Picking a parent hides it
+          // and clears it on save; clearing the parent brings it back.
+          showWhen: (values) => !values.parent_id,
         },
       ]}
       statLabels={{
