@@ -104,6 +104,12 @@ class HomeController extends Controller
             ->orderBy('parent.sort_order')
             ->orderByDesc('jobs_count')
             ->orderBy('parent.name')
+            // Tiebreaker, and not optional: sort_order defaults to 0 and two
+            // categories sharing a name is not prevented, so rows can tie on
+            // every column above. Postgres gives no order at all among rows
+            // that compare equal, and an UPDATE moves one to the end of the
+            // heap — so editing any category could reshuffle the tiles.
+            ->orderBy('parent.id')
             ->get()
             ->map(fn ($row) => [
                 'name' => $row->name,
