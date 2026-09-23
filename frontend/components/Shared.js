@@ -411,35 +411,44 @@ export function MarketingHeader({ active = "Companies" }) {
   );
 }
 
+/*
+ * Three links per column, each to a page that exists and does what its
+ * label says.
+ *
+ * Both rules were being broken. /jobs was listed four times over — as
+ * "Browse Jobs", "Search Resumes", "Salary Guide" and "Categories" — and
+ * /employer-dashboard and /articles twice each, so a column of five looked
+ * like five destinations and was two or three. The labels made it worse:
+ * there is no salary guide and no resume search, so those two promised
+ * pages that have never existed.
+ *
+ * Anything without a real page is left out rather than pointed at the
+ * nearest plausible screen. Equal columns are a side effect of that, not
+ * the goal — if a fourth honest link appears for a column, add it.
+ */
 const darkFooterCols = [
   {
     title: "For Job Seekers",
     items: [
       { label: "Browse Jobs", href: "/jobs" },
-      { label: "Create Profile", href: "/register" },
       { label: "Saved Jobs", href: "/saved-jobs" },
       { label: "Job Alerts", href: "/job-alerts" },
-      { label: "Career Advice", href: "/articles" },
     ],
   },
   {
     title: "For Employers",
     items: [
       { label: "Post a Job", href: "/employer-dashboard" },
-      { label: "Packages & Pricing", href: "/pricing" },
-      { label: "Employer Dashboard", href: "/employer-dashboard" },
       { label: "Company Profile", href: "/employer/company-profile" },
-      { label: "Search Resumes", href: "/jobs" },
+      { label: "Packages & Pricing", href: "/pricing" },
     ],
   },
   {
     title: "Resources",
     items: [
       { label: "Articles", href: "/articles" },
-      { label: "Industry News", href: "/articles" },
-      { label: "Salary Guide", href: "/jobs" },
       { label: "Companies", href: "/companies" },
-      { label: "Categories", href: "/jobs" },
+      { label: "Create Profile", href: "/register" },
     ],
   },
   {
