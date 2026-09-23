@@ -444,9 +444,11 @@ const darkFooterCols = [
   },
   {
     title: "Company",
+    // About Us and Contact Us are not in here because those pages do not
+    // exist yet. They were listed pointing at "/" and "/login", which took
+    // a reader somewhere unrelated rather than telling them the page is
+    // still to come. Add them back with real hrefs once the pages are built.
     items: [
-      { label: "About Us", href: "/" },
-      { label: "Contact Us", href: "/login" },
       { label: "Terms of Use", href: "/terms" },
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Sitemap", href: "/sitemap.xml" },
