@@ -60,6 +60,10 @@ class TaxonomySeeder extends Seeder
      * this rewrite (e.g. old "Drilling", "Production Engineering", "HSE")
      * so jobs already pointing at those ids stay attached under the new
      * grouping rather than being orphaned onto a fresh row.
+     *
+     * Re-running this is how the structure below is restored after it has
+     * been edited by hand, so it also has to undo what those edits left
+     * behind — see unfeatureCategoriesOutsideGroups() at the end.
      */
     private function seedJobCategories(): void
     {
@@ -128,7 +132,14 @@ class TaxonomySeeder extends Seeder
             ]],
         ];
 
+        // An earlier run of this seeder, before group and child slugs were
+        // kept apart, left rows pointing at themselves — see the child loop
+        // below. Detaching them first lets the rows be claimed as groups
+        // again, rather than staying invisible as their own children.
+        JobCategory::whereColumn('parent_id', 'id')->update(['parent_id' => null]);
+
         $groupIndex = 0;
+        $groupIds = [];
 
         foreach ($groups as $groupName => [$emoji, $color, $children]) {
             $groupIndex++;
@@ -146,9 +157,29 @@ class TaxonomySeeder extends Seeder
                 ]
             );
 
+            $groupIds[] = $parent->id;
+
             foreach ($children as $childIndex => $childName) {
+                /*
+                 * Str::slug drops "&", so a child can slugify to exactly what
+                 * its own group did — "Production Operations" collides with
+                 * the group "Production & Operations". updateOrCreate then
+                 * matches the group's own row and rewrites it as a child of
+                 * itself, taking the group off the homepage and stranding the
+                 * other four children under a self-parented row.
+                 *
+                 * The group keeps the bare slug, since that is what the
+                 * frontend's icon map and existing links already use; the
+                 * child takes a suffixed one.
+                 */
+                $childSlug = Str::slug($childName);
+
+                if ($childSlug === Str::slug($groupName)) {
+                    $childSlug .= '-discipline';
+                }
+
                 JobCategory::updateOrCreate(
-                    ['slug' => Str::slug($childName)],
+                    ['slug' => $childSlug],
                     [
                         'name' => $childName,
                         'description' => "{$childName} jobs",
@@ -161,6 +192,32 @@ class TaxonomySeeder extends Seeder
                 );
             }
         }
+
+        $this->unfeatureCategoriesOutsideGroups($groupIds);
+    }
+
+    /**
+     * Leaves the eight groups above as the only featured categories.
+     *
+     * The homepage tiles are exactly the featured top-level categories, so
+     * anything else still carrying the flag shows up beside them. That is
+     * how the live site ended up with a tile for "Drilling" (a sub-category
+     * promoted by hand) and a second "Projects, Procurement & Supply Chain"
+     * — a row renamed in the admin panel whose slug still said
+     * human-resources, which this seeder cannot match by slug and so never
+     * corrects.
+     *
+     * Only the flag is touched. The rows keep their names, slugs and jobs,
+     * so nothing an employer posted is lost by running this.
+     *
+     * @param  array<int, int>  $groupIds
+     */
+    private function unfeatureCategoriesOutsideGroups(array $groupIds): void
+    {
+        JobCategory::query()
+            ->whereNotIn('id', $groupIds)
+            ->where('is_featured', true)
+            ->update(['is_featured' => false]);
     }
 
     private function seedArticleCategories(): void
