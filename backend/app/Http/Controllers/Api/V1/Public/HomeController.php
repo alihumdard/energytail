@@ -72,6 +72,12 @@ class HomeController extends Controller
      * toggle look broken: ticking Featured on a new group appeared to do
      * nothing until somebody happened to post under it.
      *
+     * Every featured group is returned, with no cap. A limit here meant that
+     * past a certain number, ticking Featured silently did nothing — and
+     * which group lost its place came down to job count, so a new one with
+     * no jobs was always the one dropped. The grid wraps, so the page copes
+     * with however many the admin chooses to feature.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function categories(): array
@@ -92,10 +98,12 @@ class HomeController extends Controller
             ->where('parent.is_featured', true)
             ->whereNull('parent.deleted_at')
             ->selectRaw('parent.name, parent.slug, parent.emoji, parent.color, count(jobs.id) as jobs_count')
-            ->groupBy('parent.id', 'parent.name', 'parent.slug', 'parent.emoji', 'parent.color')
+            ->groupBy('parent.id', 'parent.name', 'parent.sort_order', 'parent.slug', 'parent.emoji', 'parent.color')
+            // The admin's own Sort Order first, since that field exists to
+            // decide this and was being ignored in favour of job count.
+            ->orderBy('parent.sort_order')
             ->orderByDesc('jobs_count')
             ->orderBy('parent.name')
-            ->limit(8)
             ->get()
             ->map(fn ($row) => [
                 'name' => $row->name,
