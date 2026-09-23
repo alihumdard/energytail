@@ -137,7 +137,18 @@ export default async function JobsPage({
       <main className="min-h-screen flex-1 bg-slate-50">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
-          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-20">
+          {/*
+            Offset by the header's real height, not a round number. The
+            sticky header is the utility bar (36px) plus an h-20 nav and its
+            border (81px), so top-20 parked the panel 37px underneath it and
+            clipped the "Filters" heading. --site-header-height keeps the two
+            in step; hard-coding it here is what let them drift apart.
+
+            max-h/overflow so a sidebar taller than the viewport can still be
+            scrolled to its end — without it, "Featured" is unreachable on a
+            short screen once the panel is pinned.
+          */}
+          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height)+1rem)] lg:max-h-[calc(100vh-var(--site-header-height)-2rem)] lg:overflow-y-auto">
             <JobFilters
               countries={countries.data}
               categories={categories.data}

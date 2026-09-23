@@ -3,6 +3,24 @@
 :root {
     --background: #ffffff;
     --foreground: #171717;
+    /*
+     * How much vertical space the sticky header occupies, for anything that
+     * has to sit below it — the job board's sticky filter sidebar, and any
+     * scroll-margin on a linked heading.
+     *
+     * Below lg the utility bar is hidden, so the header is just the h-20 nav
+     * and its border. From lg the bar adds its 16px line and 2.5 padding
+     * either side. Defined here rather than guessed at each call site,
+     * because the sidebar had been pinned to a flat top-20 and sat 37px
+     * underneath the header it was meant to clear.
+     */
+    --site-header-height: 5.0625rem;
+}
+
+@media (min-width: 64rem) {
+    :root {
+        --site-header-height: 7.3125rem;
+    }
 }
 
 @theme inline {
