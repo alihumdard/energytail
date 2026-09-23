@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Loader2, X } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
+import SearchableSelect, { type SelectOption } from "@/components/ui/SearchableSelect";
 import type { TaxonomyItem } from "@/lib/api/types";
 
 /**
@@ -20,9 +21,9 @@ export interface TaxonomyField {
   placeholder?: string;
   hint?: string;
   /** Fixed choices for a select. */
-  options?: { value: string | number; label: string }[];
+  options?: SelectOption[];
   /** Choices fetched on open, for a select backed by another resource. */
-  loadOptions?: () => Promise<{ value: string | number; label: string }[]>;
+  loadOptions?: () => Promise<SelectOption[]>;
   /**
    * Whether clearing this field sends null, meaning "erase the value".
    *
@@ -86,12 +87,25 @@ export default function TaxonomyFormModal({
   const [error, setError] = useState<ApiError | null>(null);
 
   /** Choices for selects that read from another resource, once loaded. */
-  const [loaded, setLoaded] = useState<
-    Record<string, { value: string | number; label: string }[]>
-  >({});
+  const [loaded, setLoaded] = useState<Record<string, SelectOption[]>>({});
+
+  /** Fields whose choices are still in flight, so the select can say so. */
+  const [loadingOptions, setLoadingOptions] = useState<Set<string>>(
+    () => new Set(fields.filter((f) => f.loadOptions).map((f) => f.name)),
+  );
 
   useEffect(() => {
     let cancelled = false;
+
+    function settle(name: string) {
+      if (cancelled) return;
+
+      setLoadingOptions((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+    }
 
     for (const field of fields) {
       if (!field.loadOptions) continue;
@@ -104,7 +118,8 @@ export default function TaxonomyFormModal({
         .catch(() => {
           // A select with no choices is still usable when the field is
           // optional, and the API rejects a bad value either way.
-        });
+        })
+        .finally(() => settle(field.name));
     }
 
     return () => {
@@ -239,21 +254,20 @@ export default function TaxonomyFormModal({
                 </label>
 
                 {field.type === "select" ? (
-                  <select
-                    id={field.name}
-                    value={String(value ?? "")}
-                    onChange={(e) => set(field.name, e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="">
-                      {field.placeholder ?? "Select…"}
-                    </option>
-                    {options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-1">
+                    <SearchableSelect
+                      id={field.name}
+                      options={options}
+                      value={(value as string | number) ?? null}
+                      // The form stores a blank string for "nothing chosen";
+                      // the select speaks in null, so they meet here.
+                      onChange={(next) => set(field.name, next ?? "")}
+                      placeholder={field.placeholder ?? "Select…"}
+                      loading={loadingOptions.has(field.name)}
+                      clearable={!field.required}
+                      invalid={Boolean(fieldError)}
+                    />
+                  </div>
                 ) : field.type === "textarea" ? (
                   <textarea
                     id={field.name}

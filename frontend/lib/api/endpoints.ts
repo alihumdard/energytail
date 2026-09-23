@@ -218,6 +218,35 @@ function taxonomyResource(resource: string) {
 
     exportUrl: () =>
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/${resource}/export`,
+
+    /**
+     * Every record, for a dropdown that has to offer all of them.
+     *
+     * The API caps per_page at 100, so a single request cannot return the
+     * 198 countries — asking for more silently returns the first hundred,
+     * which is why two thirds of the world was missing from the city form.
+     * Pages are followed until the last one, with a ceiling so a resource
+     * that grows unexpectedly cannot turn one dropdown into fifty requests.
+     */
+    listAll: async (
+      params?: Record<string, string | number | undefined>,
+    ): Promise<TaxonomyItem[]> => {
+      const all: TaxonomyItem[] = [];
+      const maxPages = 20;
+
+      for (let page = 1; page <= maxPages; page++) {
+        const { data, meta } = await api.get<Paginated<TaxonomyItem>>(
+          `/admin/${resource}`,
+          { ...params, per_page: 100, page },
+        );
+
+        all.push(...data);
+
+        if (page >= meta.last_page) break;
+      }
+
+      return all;
+    },
   };
 }
 

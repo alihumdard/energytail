@@ -30,11 +30,16 @@ export default function JobCategoriesPage() {
           type: "select",
           placeholder: "None - top level",
           hint: "Leave empty for a top-level category.",
+          // All of them, not the first page: a request returns at most 100
+          // and the taxonomy is already past that once sub-categories count.
           loadOptions: async () => {
-            const { data } = await adminTaxonomy.jobCategories.list({
-              per_page: 100,
-            });
-            return data.map((c) => ({ value: c.id, label: c.name }));
+            const categories = await adminTaxonomy.jobCategories.listAll();
+
+            return categories.map((c) => ({
+              value: c.id,
+              label: c.name,
+              prefix: c.emoji ?? undefined,
+            }));
           },
           nullable: true,
         },

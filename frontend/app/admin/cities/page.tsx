@@ -25,12 +25,18 @@ export default function CitiesPage() {
           required: true,
           placeholder: "Choose a country…",
           // Read from the API rather than hard-coded: the country list is
-          // itself editable on the screen next door.
+          // itself editable on the screen next door. Every page of it, since
+          // there are close to 200 and one request returns at most 100.
           loadOptions: async () => {
-            const { data } = await adminTaxonomy.countries.list({
-              per_page: 100,
-            });
-            return data.map((c) => ({ value: c.id, label: c.name }));
+            const countries = await adminTaxonomy.countries.listAll();
+
+            return countries.map((c) => ({
+              value: c.id,
+              label: c.name,
+              prefix: c.flag_emoji ?? undefined,
+              // Searchable too, so "AE" finds the United Arab Emirates.
+              hint: c.code ?? undefined,
+            }));
           },
         },
         {

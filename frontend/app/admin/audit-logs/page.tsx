@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import { adminAudit } from "@/lib/api/endpoints";
 import { useApiResource, useDebounced } from "@/lib/hooks/useApiResource";
 import { API_URL } from "@/lib/api/client";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 /** Colour per action verb, so the log scans at a glance. */
 const ACTION_STYLE: Record<string, string> = {
@@ -202,22 +203,23 @@ export default function AuditLogsPage() {
               label: "All Statuses",
             },
           ].map((f) => (
-            <select
-              key={f.label}
-              value={f.value}
-              onChange={(e) => {
-                f.set(e.target.value);
-                setPage(1);
-              }}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600"
-            >
-              <option value="">{f.label}</option>
-              {(f.options ?? []).map((o) => (
-                <option key={o} value={o}>
-                  {humanise(o)}
-                </option>
-              ))}
-            </select>
+            // Searchable: modules and actions are not a fixed list — they
+            // grow with every feature that writes to the log, and scrolling
+            // one to find "login_failed" gets slower each release.
+            <div key={f.label} className="w-44">
+              <SearchableSelect
+                options={(f.options ?? []).map((o) => ({
+                  value: o,
+                  label: humanise(o),
+                }))}
+                value={f.value || null}
+                onChange={(next) => {
+                  f.set(next === null ? "" : String(next));
+                  setPage(1);
+                }}
+                placeholder={f.label}
+              />
+            </div>
           ))}
 
           <input
