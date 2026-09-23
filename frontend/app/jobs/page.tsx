@@ -17,6 +17,17 @@ export const metadata: Metadata = {
     "Search engineering, HSE, drilling, LNG and renewables roles with leading energy employers worldwide.",
 };
 
+/** Common searches, offered as one-tap chips beneath the search field.
+ *  Kept in step with the homepage's list, which seeds the same habit. */
+const POPULAR_SEARCHES = [
+  "Engineer",
+  "HSE",
+  "Drilling",
+  "LNG",
+  "Pipeline",
+  "Offshore",
+];
+
 /** Filters this page understands, in the order the API expects them. */
 const FILTER_KEYS = [
   "search",
@@ -106,6 +117,9 @@ export default async function JobsPage({
   const from = results.length === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1;
   const to = Math.min(meta.current_page * meta.per_page, meta.total);
 
+  /** Whether the total describes the whole board or a filtered slice of it. */
+  const hasFilters = Object.keys(active).length > 0;
+
   return (
     <>
       <SiteHeader active="Jobs" />
@@ -117,20 +131,95 @@ export default async function JobsPage({
           instead of just a floating title. */}
       <section className="relative overflow-hidden bg-[#0B2B26] text-white">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0B2B26] via-[#0B2B26]/90 to-[#123832]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(62,189,62,0.3),transparent_55%)]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0B2B26] via-[#0F3A32] to-[#123832]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(62,189,62,0.28),transparent_55%)]" />
+          {/* A faint grid, so the right-hand half is textured rather than a
+              flat slab of green where the copy runs out. */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:44px_44px]"
+          />
         </div>
-        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:py-12">
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Oil, Gas &amp; Energy Jobs
-          </h1>
-          <p className="mt-2 text-sm text-slate-300">
-            {meta.total.toLocaleString()} open{" "}
-            {meta.total === 1 ? "position" : "positions"} across the energy
-            sector.
-          </p>
 
-          <JobSearchBar defaultValue={active.search} />
+        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:py-14">
+          <div className="lg:flex lg:items-end lg:justify-between lg:gap-10">
+            <div className="lg:max-w-2xl lg:flex-1">
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Oil, Gas &amp; Energy Jobs
+              </h1>
+
+              {/*
+                Says whether the number is the whole board or what the
+                filters left. It read "3 open positions across the energy
+                sector" while a Remote filter was cutting 27 down to 3,
+                which described the filter's result as if it were the market.
+              */}
+              <p className="mt-2 text-sm text-slate-300">
+                {hasFilters ? (
+                  <>
+                    <span className="font-semibold text-white">
+                      {meta.total.toLocaleString()}
+                    </span>{" "}
+                    {meta.total === 1 ? "position matches" : "positions match"}{" "}
+                    your filters
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold text-white">
+                      {meta.total.toLocaleString()}
+                    </span>{" "}
+                    open {meta.total === 1 ? "position" : "positions"} across
+                    the energy sector
+                  </>
+                )}
+              </p>
+
+              <JobSearchBar defaultValue={active.search} />
+
+              {/* One tap into the searches people actually run, instead of
+                  making a visitor think of a keyword from a blank field. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-400">
+                  Popular:
+                </span>
+                {POPULAR_SEARCHES.map((term) => (
+                  <Link
+                    key={term}
+                    href={`/jobs?search=${encodeURIComponent(term)}`}
+                    className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+                  >
+                    {term}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* The board at a glance. Fills the right-hand emptiness with
+                something true rather than decoration, and every figure is
+                already on the page — no extra request. */}
+            <dl className="mt-8 grid grid-cols-3 gap-3 lg:mt-0 lg:shrink-0 lg:gap-4">
+              {[
+                { label: meta.total === 1 ? "Open role" : "Open roles", value: meta.total },
+                { label: "Countries", value: countries.data.length },
+                { label: "Categories", value: categories.data.length },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center backdrop-blur-sm lg:min-w-[7rem]"
+                >
+                  <dt className="sr-only">{stat.label}</dt>
+                  <dd>
+                    <span className="block text-xl font-bold text-white sm:text-2xl">
+                      {stat.value.toLocaleString()}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                      {stat.label}
+                    </span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </div>
       </section>
 
