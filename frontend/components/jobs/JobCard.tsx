@@ -114,37 +114,47 @@ export default function JobCard({ job }: { job: JobSummary }) {
         aria-hidden="true"
       />
 
-      <div className="flex flex-col sm:flex-row">
+      <div className="p-4 sm:p-5">
         {/*
-          The thumbnail. A banner on mobile and a fixed-width panel from sm
-          up, so the text column keeps a sensible measure on a phone instead
-          of being squeezed beside a picture.
-
-          Plain <img> rather than next/image: these are decorative stand-ins
-          chosen per category, and routing them through the optimiser would
-          mean a remotePatterns entry and a server round trip per card for an
-          image that is already sized for the slot.
+          A post header, the way a feed card opens: who posted, and when.
+          The job title leads the body below it. Laid out this way rather
+          than beside a tall photo, which pushed the title into a narrow
+          column and made the picture the loudest thing on the card.
         */}
-        <div className="relative z-10 shrink-0 overflow-hidden bg-slate-100 sm:w-48 lg:w-56">
-          <Link href={`/jobs/${job.slug}`} tabIndex={-1} aria-hidden="true">
-            <img
-              src={thumbnail}
-              alt=""
-              loading="lazy"
-              className="h-40 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-full sm:min-h-[11rem]"
-            />
-          </Link>
-
-          {/* The company mark sits on the image, which is where the eye
-              already is, rather than taking a column of its own. */}
-          <span className="absolute bottom-2 left-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white/95 text-xs font-bold text-slate-600 shadow-sm backdrop-blur">
+        <div className="flex items-start gap-3">
+          <span className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-sm font-bold text-slate-500">
             {(job.company?.name ?? "?").slice(0, 2).toUpperCase()}
           </span>
-        </div>
 
-        <div className="min-w-0 flex-1 p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-2">
-            <h2 className="truncate text-base font-semibold leading-tight text-slate-900">
+          <div className="min-w-0 flex-1">
+            {/* Company and timestamp: the "posted by" line of a feed post. */}
+            <p className="flex flex-wrap items-center gap-x-1.5 text-sm">
+              {job.company ? (
+                <Link
+                  href={`/companies/${job.company.slug}`}
+                  className="relative z-10 font-semibold text-slate-700 hover:text-blue-600"
+                >
+                  {job.company.name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-slate-400">
+                  Company withheld
+                </span>
+              )}
+              {job.company?.is_verified && (
+                <BadgeCheck className="h-4 w-4 shrink-0 text-blue-500" />
+              )}
+              {posted && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-xs text-slate-400">{posted}</span>
+                </>
+              )}
+            </p>
+
+            {/* Wraps rather than truncating: a job title cut off mid-word is
+                the one thing on the card a reader cannot afford to lose. */}
+            <h2 className="mt-0.5 text-[17px] font-bold leading-snug text-slate-900">
               <Link
                 href={`/jobs/${job.slug}`}
                 className="relative z-10 hover:text-blue-600"
@@ -153,105 +163,107 @@ export default function JobCard({ job }: { job: JobSummary }) {
               </Link>
             </h2>
 
-            {/* Above the card-covering link so it stays independently
-                clickable, and sized to a full 44px tap target on mobile. */}
-            <span className="relative z-10 -m-2.5 shrink-0 p-2.5">
-              <SaveJobButton jobId={job.id} />
-            </span>
+            {location && (
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{location}</span>
+              </p>
+            )}
           </div>
 
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="flex items-center gap-1.5 text-sm text-slate-500">
-              {job.company ? (
-                <Link
-                  href={`/companies/${job.company.slug}`}
-                  className="relative z-10 truncate hover:text-blue-600"
-                >
-                  {job.company.name}
-                </Link>
-              ) : (
-                <span className="text-slate-400">Company withheld</span>
-              )}
-              {job.company?.is_verified && (
-                <BadgeCheck className="h-4 w-4 shrink-0 text-blue-500" />
-              )}
-            </p>
+          {/* Above the card-covering link so it stays independently
+              clickable, and sized to a full 44px tap target on mobile. */}
+          <span className="relative z-10 -m-2.5 shrink-0 p-2.5">
+            <SaveJobButton jobId={job.id} />
+          </span>
+        </div>
 
-            {/* Badges inline next to the company name so they never affect
-                the title's position above. */}
+        {/* Status badges, on their own line so a long company name can never
+            push them out of view. */}
+        {(job.is_featured || job.is_urgent || job.is_remote) && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {job.is_featured && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-600">
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
                 Featured
               </span>
             )}
             {job.is_urgent && (
-              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
+              <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-600">
                 Urgent
               </span>
             )}
             {job.is_remote && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-600">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
                 Remote
               </span>
             )}
           </div>
+        )}
 
-          <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
-            {location && (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <MapPin className="h-4 w-4 shrink-0" />
-                <span className="truncate">{location}</span>
-              </div>
-            )}
-            {job.employment_type && (
-              <div className="flex items-center gap-1.5">
-                <Briefcase className="h-4 w-4 shrink-0" />
-                {humanise(job.employment_type)}
-              </div>
-            )}
-            {experience && <span>{experience}</span>}
-            {salary ? (
-              <div className="flex items-center gap-1.5 font-medium text-slate-700">
-                <Wallet className="h-4 w-4 shrink-0" />
-                {salary}
-              </div>
-            ) : (
-              <span className="text-slate-400">Salary undisclosed</span>
-            )}
-          </dl>
+        {/*
+          The media, below the text — the shape a feed post takes. Wide and
+          short so it illustrates the card without becoming it; the previous
+          version gave the photo a full tall column beside the title and it
+          read as a photo gallery with captions.
+        */}
+        <Link
+          href={`/jobs/${job.slug}`}
+          className="relative z-10 mt-3 block aspect-[21/9] overflow-hidden rounded-xl bg-slate-100"
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        </Link>
 
-          {(job.category || job.industry) && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {[job.category, job.industry].filter(Boolean).map((ref) => (
-                <span
-                  key={ref!.slug}
-                  className="rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
-                >
-                  {ref!.name}
-                </span>
-              ))}
+        {/* The facts a candidate scans for, as a strip under the media. */}
+        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
+          {job.employment_type && (
+            <div className="flex items-center gap-1.5">
+              <Briefcase className="h-4 w-4 shrink-0" />
+              {humanise(job.employment_type)}
             </div>
           )}
+          {experience && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 shrink-0" />
+              {experience}
+            </div>
+          )}
+          {salary ? (
+            <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+              <Wallet className="h-4 w-4 shrink-0" />
+              {salary}
+            </div>
+          ) : (
+            <span className="text-slate-400">Salary undisclosed</span>
+          )}
+        </dl>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-50 pt-3">
-            {posted ? (
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                <Clock className="h-3.5 w-3.5" />
-                {posted}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            {[job.category, job.industry].filter(Boolean).map((ref) => (
+              <span
+                key={ref!.slug}
+                className="rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
+              >
+                {ref!.name}
               </span>
-            ) : (
-              <span />
-            )}
-
-            {/* Always visible, not hover-only, so touch devices get the same
-                affordance as desktop. */}
-            <Link
-              href={`/jobs/${job.slug}`}
-              className="relative z-10 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-            >
-              View job
-            </Link>
+            ))}
           </div>
+
+          {/* Always visible, not hover-only, so touch devices get the same
+              affordance as desktop. */}
+          <Link
+            href={`/jobs/${job.slug}`}
+            className="relative z-10 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            View job
+          </Link>
         </div>
       </div>
     </article>

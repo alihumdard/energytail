@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import type { NamedRef } from "@/lib/api/types";
 
 /**
@@ -93,43 +94,31 @@ export default function JobFilters({ countries, categories, industries, active }
           <Select
             label="Country"
             value={active.country ?? ""}
-            options={countries}
+            options={asOptions(countries)}
+            placeholder="All countries"
             onChange={(v) => apply("country", v)}
           />
           <Select
             label="Category"
             value={active.category ?? ""}
-            options={categories}
+            options={asOptions(categories)}
+            placeholder="All categories"
             onChange={(v) => apply("category", v)}
           />
           <Select
             label="Industry"
             value={active.industry ?? ""}
-            options={industries}
+            options={asOptions(industries)}
+            placeholder="All industries"
             onChange={(v) => apply("industry", v)}
           />
-
-          <div>
-            <label
-              htmlFor="employment_type"
-              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
-            >
-              Employment Type
-            </label>
-            <select
-              id="employment_type"
-              value={active.employment_type ?? ""}
-              onChange={(e) => apply("employment_type", e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            >
-              <option value="">Any type</option>
-              {EMPLOYMENT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Employment Type"
+            value={active.employment_type ?? ""}
+            options={EMPLOYMENT_TYPES}
+            placeholder="Any type"
+            onChange={(v) => apply("employment_type", v)}
+          />
 
           <div className="space-y-1 border-t border-slate-100 pt-4">
             <Toggle
@@ -149,18 +138,28 @@ export default function JobFilters({ countries, categories, industries, active }
   );
 }
 
+/**
+ * One filter dropdown.
+ *
+ * Searchable rather than native: the country list alone runs to the whole
+ * world, and finding one in a scroll of two hundred is the slowest part of
+ * using the board. Short lists get the same control for consistency — it
+ * hides its own search box below a handful of options.
+ */
 function Select({
   label,
   value,
   options,
+  placeholder,
   onChange,
 }: {
   label: string;
   value: string;
-  options: NamedRef[];
+  options: { value: string; label: string }[];
+  placeholder: string;
   onChange: (value: string) => void;
 }) {
-  const id = label.toLowerCase();
+  const id = label.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <div>
@@ -170,21 +169,22 @@ function Select({
       >
         {label}
       </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-      >
-        <option value="">All {label.toLowerCase()}</option>
-        {options.map((o) => (
-          <option key={o.slug} value={o.slug}>
-            {o.name}
-          </option>
-        ))}
-      </select>
+      <div className="mt-1.5">
+        <SearchableSelect
+          id={id}
+          options={options}
+          value={value || null}
+          onChange={(next) => onChange(next === null ? "" : String(next))}
+          placeholder={placeholder}
+        />
+      </div>
     </div>
   );
+}
+
+/** NamedRef is {name, slug}; the select speaks {label, value}. */
+function asOptions(refs: NamedRef[]): { value: string; label: string }[] {
+  return refs.map((ref) => ({ value: ref.slug, label: ref.name }));
 }
 
 function Toggle({

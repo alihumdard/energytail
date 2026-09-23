@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import type { NamedRef } from "@/lib/api/types";
 
 /**
@@ -30,12 +31,15 @@ export default function ResultsToolbar({
   countries,
   categories,
   industries,
+  summary,
 }: {
   active: Record<string, string>;
   sort: string;
   countries: NamedRef[];
   categories: NamedRef[];
   industries: NamedRef[];
+  /** "Showing 1–15 of 27", rendered on the same row as the sort control. */
+  summary: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,38 +89,41 @@ export default function ResultsToolbar({
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {chips.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {chips.map((chip) => (
-              <button
-                key={chip.key}
-                onClick={() => removeChip(chip.key)}
-                className="flex items-center gap-1.5 rounded-full bg-blue-50 py-1.5 pl-3 pr-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-              >
-                {chip.label}
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span />
-        )}
+      {/* Chips first, on their own line — they wrap freely without ever
+          pushing the sort control off the row below. */}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {chips.map((chip) => (
+            <button
+              key={chip.key}
+              onClick={() => removeChip(chip.key)}
+              className="flex items-center gap-1.5 rounded-full bg-blue-50 py-1.5 pl-3 pr-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+            >
+              {chip.label}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ))}
+        </div>
+      )}
 
-        <label className="ml-auto flex shrink-0 items-center gap-2 text-sm text-slate-500">
-          Sort by
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="rounded-lg border border-slate-200 py-2 pl-3 pr-8 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* The result count belongs beside the control that reorders it,
+            rather than stranded on a line of its own above the toolbar. */}
+        <p className="text-sm text-slate-500">{summary}</p>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2 text-sm text-slate-500">
+          <span id="sort-label">Sort by</span>
+          <div className="w-44">
+            <SearchableSelect
+              options={SORT_OPTIONS.filter((o) => o.value !== "")}
+              value={sort || null}
+              onChange={(next) => setSort(next === null ? "" : String(next))}
+              // Clearing returns to the default order, which is what the
+              // empty sort value means to the page.
+              placeholder="Newest"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import JobCard from "@/components/jobs/JobCard";
 import JobFilters from "@/components/jobs/JobFilters";
 import JobSearchBar from "@/components/jobs/JobSearchBar";
 import ResultsToolbar from "@/components/jobs/ResultsToolbar";
+import Pagination from "@/components/ui/Pagination";
 import { fetchPublic } from "@/lib/api/server";
 import type { JobSummary, NamedRef, Paginated } from "@/lib/api/types";
 
@@ -89,9 +90,12 @@ export default async function JobsPage({
 
   const { data: results, meta } = jobs;
 
-  /** Keeps every active filter when moving between pages. */
+  /** Keeps every active filter — and the sort order — across pages. */
   function pageHref(target: number): string {
     const query = new URLSearchParams(active);
+    // Was dropped here, so paging a salary-sorted board silently reverted
+    // it to newest-first on page two.
+    if (sort) query.set("sort", sort);
     if (target > 1) query.set("page", String(target));
 
     const qs = query.toString();
@@ -143,20 +147,17 @@ export default async function JobsPage({
           </aside>
 
           <section>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-500">
-                {results.length === 0
-                  ? "No results"
-                  : `Showing ${from}–${to} of ${meta.total.toLocaleString()}`}
-              </p>
-            </div>
-
             <ResultsToolbar
               active={active}
               sort={sort}
               countries={countries.data}
               categories={categories.data}
               industries={industries.data}
+              summary={
+                results.length === 0
+                  ? "No results"
+                  : `Showing ${from}–${to} of ${meta.total.toLocaleString()}`
+              }
             />
 
             {results.length === 0 ? (
@@ -190,34 +191,12 @@ export default async function JobsPage({
               </SavedJobsProvider>
             )}
 
-            {meta.last_page > 1 && (
-              <nav
-                aria-label="Pagination"
-                className="mt-6 flex items-center justify-center gap-2"
-              >
-                {page > 1 && (
-                  <Link
-                    href={pageHref(page - 1)}
-                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    Previous
-                  </Link>
-                )}
-
-                <span className="px-3 text-sm text-slate-500">
-                  Page {meta.current_page} of {meta.last_page}
-                </span>
-
-                {page < meta.last_page && (
-                  <Link
-                    href={pageHref(page + 1)}
-                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    Next
-                  </Link>
-                )}
-              </nav>
-            )}
+            <Pagination
+              currentPage={meta.current_page}
+              lastPage={meta.last_page}
+              hrefFor={pageHref}
+              label="Job results pages"
+            />
           </section>
         </div>
         </div>

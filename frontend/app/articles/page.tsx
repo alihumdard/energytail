@@ -4,6 +4,7 @@ import { Clock, Eye, Star } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
 import { DarkFooter } from "@/components/Shared";
 import { fetchPublic } from "@/lib/api/server";
+import Pagination from "@/components/ui/Pagination";
 import { articleThumbnail } from "@/lib/thumbnails";
 import type { Paginated, PublicArticle, TaxonomyItem } from "@/lib/api/types";
 
@@ -215,29 +216,12 @@ export default async function ArticlesPage({
             </div>
           )}
 
-          {meta.last_page > 1 && (
-            <div className="mt-8 flex items-center justify-center gap-3">
-              {meta.current_page > 1 && (
-                <Link
-                  href={pageHref(meta.current_page - 1)}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:border-blue-400"
-                >
-                  Previous
-                </Link>
-              )}
-              <span className="text-sm text-slate-500">
-                Page {meta.current_page} of {meta.last_page}
-              </span>
-              {meta.current_page < meta.last_page && (
-                <Link
-                  href={pageHref(meta.current_page + 1)}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:border-blue-400"
-                >
-                  Next
-                </Link>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={meta.current_page}
+            lastPage={meta.last_page}
+            hrefFor={pageHref}
+            label="Article pages"
+          />
         </div>
       </main>
 
