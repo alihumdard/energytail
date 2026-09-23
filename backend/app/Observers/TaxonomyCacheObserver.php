@@ -26,6 +26,12 @@ class TaxonomyCacheObserver
         'public.skills',
         'public.tags',
         'public.taxonomies.all',
+
+        // The homepage caches its whole payload, category tiles included, so
+        // it has to be dropped here too. Without this, ticking "Featured" on
+        // a category did nothing visible for up to five minutes, which reads
+        // as the toggle being broken rather than as a cache.
+        'home.payload',
     ];
 
     public function saved(Model $model): void

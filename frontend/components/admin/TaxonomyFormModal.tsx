@@ -181,18 +181,23 @@ export default function TaxonomyFormModal({
 
             if (field.type === "checkbox") {
               return (
-                <label
-                  key={field.name}
-                  className="flex items-center gap-2 text-sm text-slate-600"
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(value)}
-                    onChange={(e) => set(field.name, e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  {field.label}
-                </label>
+                <div key={field.name}>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(value)}
+                      onChange={(e) => set(field.name, e.target.checked)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {field.label}
+                  </label>
+                  {/* Indented past the box, so it reads as belonging to it. */}
+                  {field.hint && (
+                    <p className="mt-1 pl-6 text-xs text-slate-400">
+                      {field.hint}
+                    </p>
+                  )}
+                </div>
               );
             }
 

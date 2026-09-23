@@ -47,7 +47,12 @@ export default function JobCategoriesPage() {
         { name: "color", label: "Colour", type: "color", nullable: true },
         { name: "sort_order", label: "Sort Order", type: "number" },
         { name: "is_active", label: "Active", type: "checkbox" },
-        { name: "is_featured", label: "Featured", type: "checkbox" },
+        {
+          name: "is_featured",
+          label: "Featured",
+          type: "checkbox",
+          hint: "Gives this category a tile on the homepage. Top-level categories only — a category with a parent will not appear there.",
+        },
       ]}
       statLabels={{
         total: "Total Categories",
@@ -60,11 +65,26 @@ export default function JobCategoriesPage() {
         { header: "Slug", render: (c) => c.slug },
         {
           header: "Featured",
+          /*
+           * Only top-level categories get a homepage tile, so a featured
+           * sub-category is flagged rather than shown the same as one that
+           * does appear — ticking Featured on a sub-category otherwise looks
+           * like the homepage ignoring it.
+           */
           render: (c) =>
             c.is_featured ? (
-              <span className="text-xs font-medium text-amber-600">
-                Featured
-              </span>
+              c.parent_id ? (
+                <span
+                  className="text-xs font-medium text-slate-400"
+                  title="Only top-level categories appear on the homepage. Clear this one's parent to give it a tile."
+                >
+                  Featured (not on homepage)
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-amber-600">
+                  Featured
+                </span>
+              )
             ) : (
               <span className="text-slate-300">—</span>
             ),
@@ -72,7 +92,7 @@ export default function JobCategoriesPage() {
       ]}
       tips={[
         "Job categories organise listings and drive the search experience.",
-        "Featured categories appear on the homepage.",
+        "Featured top-level categories appear on the homepage. A sub-category cannot: its jobs count towards its parent's tile instead.",
         "Inactive categories are hidden from the frontend; their jobs are unaffected.",
       ]}
     />
