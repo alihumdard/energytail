@@ -12,11 +12,11 @@ import {
   Loader2,
   Star,
 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { billing } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { BillingOverview, Plan } from "@/lib/api/types";
+import RoleShell from "@/components/RoleShell";
 
 function formatPrice(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", {
@@ -130,13 +130,12 @@ function BillingPageContent() {
 
   if (!authLoading && user && !user.roles.includes("employer") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="employer">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Employers only</h1>
           <p className="mt-2 text-slate-500">Billing needs an employer account.</p>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
@@ -144,8 +143,7 @@ function BillingPageContent() {
   const status = subscription ? STATUS_LABEL[subscription.status] : null;
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="employer">
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900">Billing</h1>
@@ -456,7 +454,7 @@ function BillingPageContent() {
           </div>
         </div>
       )}
-    </>
+    </RoleShell>
   );
 }
 

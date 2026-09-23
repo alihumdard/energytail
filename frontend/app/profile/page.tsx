@@ -12,12 +12,12 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { seekerProfile } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { Resume } from "@/lib/api/types";
 import ProfessionalDetails from "@/components/seeker/ProfessionalDetails";
+import RoleShell from "@/components/RoleShell";
 import SkillsSection from "@/components/seeker/SkillsSection";
 import {
   CertificateSection,
@@ -46,21 +46,19 @@ export default function ProfilePage() {
    */
   if (authLoading) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="seeker">
         <main className="mx-auto max-w-3xl flex-1 px-4 py-16">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   if (!user) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="seeker">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">
             Sign in to edit your profile
@@ -72,7 +70,7 @@ export default function ProfilePage() {
             Sign in
           </Link>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
@@ -195,8 +193,7 @@ function ProfileEditor() {
   const fieldError = (name: string) => error?.fieldError(name);
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="seeker">
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900">Your Profile</h1>
@@ -438,6 +435,6 @@ function ProfileEditor() {
           </div>
         )}
       </main>
-    </>
+    </RoleShell>
   );
 }

@@ -59,11 +59,18 @@ function unsplash(id: string): string {
 /**
  * A thumbnail for a job card.
  *
- * `categorySlug` picks the subject; `key` (the job slug) only decides which
- * generic photo stands in when the category is unknown, so two uncategorised
- * jobs do not look like the same posting.
+ * Prefers the employer's own upload. Failing that, `categorySlug` picks the
+ * subject and `key` (the job slug) decides which generic photo stands in
+ * when the category is unknown, so two uncategorised jobs do not look like
+ * the same posting.
  */
-export function jobThumbnail(categorySlug: string | null, key: string): string {
+export function jobThumbnail(
+  categorySlug: string | null,
+  key: string,
+  featuredImagePath?: string | null,
+): string {
+  if (featuredImagePath) return resolveUpload(featuredImagePath);
+
   const byCategory = categorySlug ? CATEGORY_PHOTOS[categorySlug] : undefined;
 
   return unsplash(byCategory ?? GENERIC_PHOTOS[hashIndex(key, GENERIC_PHOTOS.length)]);

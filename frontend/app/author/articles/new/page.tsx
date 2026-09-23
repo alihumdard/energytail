@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import ArticleForm from "@/components/author/ArticleForm";
+import RoleShell from "@/components/RoleShell";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
 export default function WriteArticlePage() {
@@ -17,15 +17,14 @@ export default function WriteArticlePage() {
 
   if (!authLoading && user && !user.roles.includes("author") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="author">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Authors only</h1>
           <p className="mt-2 text-slate-500">
             Writing an article needs an author account.
           </p>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
@@ -38,8 +37,7 @@ export default function WriteArticlePage() {
           : "It has been saved as a draft — submit it when you are ready.";
 
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="author">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
@@ -67,13 +65,12 @@ export default function WriteArticlePage() {
             </div>
           </div>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="author">
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Link
@@ -91,6 +88,6 @@ export default function WriteArticlePage() {
 
         <ArticleForm key={formKey} onSaved={setDone} />
       </main>
-    </>
+    </RoleShell>
   );
 }

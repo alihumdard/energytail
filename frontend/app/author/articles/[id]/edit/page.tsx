@@ -3,8 +3,8 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import ArticleForm from "@/components/author/ArticleForm";
+import RoleShell from "@/components/RoleShell";
 import { ApiError } from "@/lib/api/client";
 import { authorArticles } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -54,8 +54,7 @@ export default function EditArticlePage({
 
   if (saved) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="author">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
@@ -82,7 +81,7 @@ export default function EditArticlePage({
             </div>
           </div>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
@@ -96,8 +95,7 @@ export default function EditArticlePage({
     const notYours = loadError.status === 403 || loadError.status === 404;
 
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="author">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">
             {notYours ? "Article not available" : "Could not load this article"}
@@ -114,13 +112,12 @@ export default function EditArticlePage({
             Back to my articles
           </Link>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="author">
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Link
@@ -147,6 +144,6 @@ export default function EditArticlePage({
           </div>
         )}
       </main>
-    </>
+    </RoleShell>
   );
 }

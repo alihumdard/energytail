@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2, Save, Send } from "lucide-react";
+import { Image as ImageIcon, Loader2, Save, Send, Upload } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { authorArticles, publicApi } from "@/lib/api/endpoints";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import MarkdownEditor from "@/components/ui/MarkdownEditor";
+import { resolveUpload } from "@/lib/thumbnails";
 import type { AuthorArticle, TaxonomyItem } from "@/lib/api/types";
 
 /**
@@ -34,6 +37,34 @@ export default function ArticleForm({
   }));
 
   const [categories, setCategories] = useState<TaxonomyItem[]>([]);
+  const [tags, setTags] = useState<TaxonomyItem[]>([]);
+  const [chosenTags, setChosenTags] = useState<number[]>(article?.tags ?? []);
+
+  /**
+   * The chosen image, and whether an existing one is being cleared.
+   *
+   * Kept outside `form` because a File is not a string and must not be
+   * serialised with the rest of the payload — it decides whether the
+   * request goes as JSON or as multipart.
+   */
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setObjectUrl(null);
+      return;
+    }
+
+    // Revoked on cleanup: an object URL holds the file in memory until it
+    // is released, and picking several images would leak every one.
+    const url = URL.createObjectURL(imageFile);
+    setObjectUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
   const [submitting, setSubmitting] = useState<"draft" | "review" | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -53,10 +84,57 @@ export default function ArticleForm({
         // The select stays empty; the category is optional anyway.
       });
 
+    publicApi
+      .tags()
+      .then(({ data }) => {
+        if (!cancelled) setTags(data);
+      })
+      .catch(() => {
+        // Tags are optional too — the form is still usable without them.
+      });
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * The JSON payload as multipart, for a request carrying a file.
+   *
+   * Booleans become "1"/"0": a bare "false" is a non-empty string, which
+   * Laravel's boolean rule reads as true. Arrays are sent as name[]
+   * entries, which is how PHP reconstructs a list — an empty array sends
+   * nothing, so tags[] is written explicitly to mean "clear them".
+   */
+  function toFormData(
+    payload: Record<string, unknown>,
+    file: File | null,
+    clearImage: boolean,
+  ): FormData {
+    const data = new FormData();
+
+    for (const [key, value] of Object.entries(payload)) {
+      if (value === undefined || value === null) continue;
+
+      if (typeof value === "boolean") {
+        data.append(key, value ? "1" : "0");
+      } else if (Array.isArray(value)) {
+        // An empty array appends nothing, so the key simply does not
+        // arrive. That is why clearing every tag is done through the JSON
+        // path, which can express [] — a multipart request that also
+        // clears its tags is not a combination the form can produce.
+        for (const item of value) data.append(`${key}[]`, String(item));
+      } else {
+        data.append(key, String(value));
+      }
+    }
+
+    if (file) data.append("featured_image", file);
+    // Only meaningful without a replacement: a new file supersedes it.
+    if (clearImage && !file) data.append("remove_featured_image", "1");
+
+    return data;
+  }
 
   async function submit(event: FormEvent, status: "draft" | "pending_review") {
     event.preventDefault();
@@ -84,9 +162,24 @@ export default function ArticleForm({
         payload.article_category_id = Number(form.article_category_id);
       }
 
+      // Always sent, so clearing every tag is possible — the API leaves
+      // tags alone only when the key is absent entirely.
+      payload.tags = chosenTags;
+
+      /*
+       * A file cannot travel as JSON, so the whole payload becomes
+       * multipart the moment one is attached. Everything else still goes as
+       * JSON, which keeps the common case — an edit that does not touch the
+       * picture — exactly as it was.
+       */
+      const body =
+        imageFile || removeImage
+          ? toFormData(payload, imageFile, removeImage)
+          : payload;
+
       const { data } = article
-        ? await authorArticles.update(article.id, payload)
-        : await authorArticles.create(payload);
+        ? await authorArticles.update(article.id, body)
+        : await authorArticles.create(body);
 
       onSaved({ title: data.title, status: data.status });
     } catch (err) {
@@ -96,6 +189,16 @@ export default function ArticleForm({
       setSubmitting(null);
     }
   }
+
+  /*
+   * What the preview shows: the newly picked file, or the saved image
+   * while none has been picked and none is being removed.
+   */
+  const imagePreview =
+    objectUrl ??
+    (!removeImage && article?.featured_image_path
+      ? resolveUpload(article.featured_image_path)
+      : null);
 
   const fieldError = (name: string) => error?.fieldError(name);
 
@@ -144,21 +247,145 @@ export default function ArticleForm({
           )}
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Category</span>
-          <select
-            value={form.article_category_id}
-            onChange={(e) => set("article_category_id", e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none"
+        {/* A div, not a label: a label wrapping this control would forward
+            every click inside it — including clicks on an option in the
+            open list — back to the button that opens it. */}
+        <div className="block">
+          <label
+            htmlFor="article_category_id"
+            className="text-sm font-medium text-slate-700"
           >
-            <option value="">Choose a category…</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            Category
+          </label>
+          <div className="mt-1">
+            <SearchableSelect
+              id="article_category_id"
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              value={form.article_category_id || null}
+              onChange={(next) =>
+                set("article_category_id", next === null ? "" : String(next))
+              }
+              placeholder="Choose a category…"
+              invalid={Boolean(fieldError("article_category_id"))}
+            />
+          </div>
+        </div>
+
+        {/*
+          The lead image. Optional: a piece without one falls back to a
+          photo chosen from its category, which is what every article showed
+          before this field existed.
+        */}
+        <div>
+          <span className="text-sm font-medium text-slate-700">
+            Feature image
+          </span>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-4">
+            {/* A preview, so the choice can be checked before saving — a
+                filename alone says nothing about what was picked. */}
+            <span className="relative grid h-24 w-40 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              {imagePreview ? (
+                <img src={imagePreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex flex-col items-center gap-1 text-slate-400">
+                  <ImageIcon className="h-5 w-5" />
+                  <span className="text-[11px]">No image</span>
+                </span>
+              )}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-600">
+                <Upload className="h-4 w-4" />
+                {imagePreview ? "Replace image" : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+
+                    setImageFile(file);
+                    // Choosing a file overrides a pending removal — the two
+                    // together would delete the upload just made.
+                    if (file) setRemoveImage(false);
+                  }}
+                />
+              </label>
+
+              {imagePreview && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageFile(null);
+                    // Only an image already saved needs removing on the
+                    // server; an unsaved pick is just discarded.
+                    setRemoveImage(Boolean(article?.featured_image_path));
+                  }}
+                  className="ml-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-red-600"
+                >
+                  Remove
+                </button>
+              )}
+
+              <p className="mt-2 text-xs text-slate-400">
+                JPG, PNG or WebP, up to 4MB. Shown on the article card and at
+                the top of the piece. Leave empty to use a photo from the
+                article&apos;s category.
+              </p>
+
+              {fieldError("featured_image") && (
+                <p className="mt-1 text-xs text-red-600">
+                  {fieldError("featured_image")}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/*
+          Tags as toggles rather than a multi-select. There are nine of
+          them and an author picks two or three — a list of buttons shows
+          every option and what is chosen at a glance, which a collapsed
+          multi-select does neither.
+        */}
+        {tags.length > 0 && (
+          <div>
+            <span className="text-sm font-medium text-slate-700">Tags</span>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {tags.map((tag) => {
+                const on = chosenTags.includes(tag.id);
+
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setChosenTags((prev) =>
+                        on ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
+                      )
+                    }
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      on
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Up to 10. Tags help readers find related pieces.
+            </p>
+            {fieldError("tags") && (
+              <p className="mt-1 text-xs text-red-600">{fieldError("tags")}</p>
+            )}
+          </div>
+        )}
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Excerpt</span>
@@ -174,30 +401,38 @@ export default function ArticleForm({
           )}
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">
+        {/* A div, not a label: the editor is a toolbar and a textarea, and
+            a label wrapping both would forward every toolbar click into the
+            text area. */}
+        <div className="block">
+          <label htmlFor="body" className="text-sm font-medium text-slate-700">
             Body <span className="text-red-500">*</span>
-          </span>
-          <textarea
-            value={form.body}
-            onChange={(e) => set("body", e.target.value)}
-            rows={16}
-            placeholder="Write the article. Leave a blank line between paragraphs."
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm leading-relaxed focus:border-blue-400 focus:outline-none"
-          />
+          </label>
+
+          {/*
+            Markdown, not HTML. The editor gives an author the toolbar they
+            expect, while what is stored stays inert text — a WYSIWYG
+            editor's HTML would have to be rendered to every visitor, which
+            is exactly what the public page has always refused to do.
+          */}
+          <div className="mt-1">
+            <MarkdownEditor
+              id="body"
+              value={form.body}
+              onChange={(v) => set("body", v)}
+              placeholder="Write the article. Leave a blank line between paragraphs."
+              invalid={Boolean(fieldError("body"))}
+            />
+          </div>
+
           <span className="mt-1 flex justify-between text-xs text-slate-400">
-            <span>
-              {/* Plain text, not HTML: the public page renders paragraphs as
-                  text, so nothing an author writes can execute on a reader's
-                  screen. */}
-              Blank line between paragraphs. At least 100 characters.
-            </span>
+            <span>At least 100 characters.</span>
             <span>{words} words</span>
           </span>
           {fieldError("body") && (
             <span className="mt-1 block text-xs text-red-600">{fieldError("body")}</span>
           )}
-        </label>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-5">

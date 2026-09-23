@@ -341,11 +341,26 @@ export const employerJobs = {
   get: (id: number) =>
     api.get<ApiEnvelope<EmployerJob>>(`/employer/jobs/${id}`),
 
-  create: (payload: Record<string, unknown>) =>
+  create: (payload: Record<string, unknown> | FormData) =>
     api.post<ApiEnvelope<EmployerJob>>("/employer/jobs", payload),
 
-  update: (id: number, payload: Record<string, unknown>) =>
-    api.put<ApiEnvelope<EmployerJob>>(`/employer/jobs/${id}`, payload),
+  /**
+   * FormData goes as POST with _method=PUT, not as a real PUT.
+   *
+   * PHP only parses a multipart body on POST — it populates $_FILES from
+   * nothing else — so a PUT carrying a file arrives with the upload
+   * missing and every other field empty. Laravel's method spoofing is the
+   * standard way around it, and the route still resolves to update().
+   */
+  update: (id: number, payload: Record<string, unknown> | FormData) => {
+    if (payload instanceof FormData) {
+      payload.append("_method", "PUT");
+
+      return api.post<ApiEnvelope<EmployerJob>>(`/employer/jobs/${id}`, payload);
+    }
+
+    return api.put<ApiEnvelope<EmployerJob>>(`/employer/jobs/${id}`, payload);
+  },
 
   close: (id: number) =>
     api.patch<ApiEnvelope<EmployerJob>>(`/employer/jobs/${id}/close`),
@@ -452,11 +467,25 @@ export const authorArticles = {
   get: (id: number) =>
     api.get<ApiEnvelope<AuthorArticle>>(`/author/articles/${id}`),
 
-  create: (payload: Record<string, unknown>) =>
+  create: (payload: Record<string, unknown> | FormData) =>
     api.post<ApiEnvelope<AuthorArticle>>("/author/articles", payload),
 
-  update: (id: number, payload: Record<string, unknown>) =>
-    api.put<ApiEnvelope<AuthorArticle>>(`/author/articles/${id}`, payload),
+  /**
+   * FormData goes as POST with _method=PUT, not as a real PUT.
+   *
+   * PHP only parses a multipart body on POST — it populates $_FILES from
+   * nothing else — so a PUT carrying a file arrives with the upload
+   * missing and every other field empty.
+   */
+  update: (id: number, payload: Record<string, unknown> | FormData) => {
+    if (payload instanceof FormData) {
+      payload.append("_method", "PUT");
+
+      return api.post<ApiEnvelope<AuthorArticle>>(`/author/articles/${id}`, payload);
+    }
+
+    return api.put<ApiEnvelope<AuthorArticle>>(`/author/articles/${id}`, payload);
+  },
 
   remove: (id: number) =>
     api.delete<{ message: string }>(`/author/articles/${id}`),

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
+  ArrowRight,
   BadgeCheck,
   Briefcase,
   CalendarClock,
@@ -174,7 +175,11 @@ export default async function JobDetailPage({
               */}
               <div className="relative aspect-[16/7] max-h-[26rem] min-h-[13rem] bg-slate-100">
                 <img
-                  src={jobThumbnail(job.category?.slug ?? null, job.slug)}
+                  src={jobThumbnail(
+                    job.category?.slug ?? null,
+                    job.slug,
+                    job.featured_image_path,
+                  )}
                   alt=""
                   className="h-full w-full object-cover"
                 />
@@ -364,13 +369,53 @@ export default async function JobDetailPage({
         </div>
 
         {related.length > 0 && (
-          <section className="mt-10">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">
-              Similar Jobs
-            </h2>
+          /*
+            A rule and real space above it. The strip previously began 40px
+            below the apply panel with nothing between them, so it read as
+            more of the same job rather than a new section — and on a short
+            job the two ran together entirely.
+          */
+          <section className="mt-12 border-t border-slate-200 pt-10">
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Similar Jobs
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {job.category
+                    ? `More ${job.category.name} roles you may be a fit for.`
+                    : "More roles you may be a fit for."}
+                </p>
+              </div>
+
+              {/* The strip is a sample, so it needs a way through to the
+                  rest — filtered to the same category, not just /jobs. */}
+              <Link
+                href={
+                  job.category
+                    ? `/jobs?category=${job.category.slug}`
+                    : "/jobs"
+                }
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-600"
+              >
+                Browse all
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
             {/* Its own provider, so the strip resolves in one request too. */}
             <SavedJobsProvider>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/*
+                Three across on a desktop, four where there is room for them.
+                At two, each card was as wide as the job above it and the
+                strip read as a second listing rather than a footnote to
+                this one.
+
+                items-stretch so cards in a row match height regardless of
+                how much text each carries — ragged card bottoms are what
+                made the grid look untidy.
+              */}
+              <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {related.map((r) => (
                   <JobCard key={r.id} job={r} />
                 ))}

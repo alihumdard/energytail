@@ -38,6 +38,25 @@ class StoreJobRequest extends FormRequest
             'requirements' => ['nullable', 'string'],
             'benefits' => ['nullable', 'string'],
 
+            /*
+             * The listing's own photograph, uploaded rather than linked.
+             *
+             * Optional: a job without one falls back to a photo chosen from
+             * its category, which is what every listing showed before this
+             * field existed.
+             *
+             * 'image' restricts this to real image types rather than
+             * trusting the extension. 4MB, in kilobytes: a photograph
+             * straight off a phone routinely passes 2MB, and an employer
+             * should not have to resize one before posting.
+             */
+            'featured_image' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
+
+            // Sent as true to clear an existing image without replacing it —
+            // an absent file means "leave it alone", which is what an edit
+            // that does not touch the picture has to mean.
+            'remove_featured_image' => ['sometimes', 'boolean'],
+
             'job_category_id' => ['required', 'integer', 'exists:job_categories,id'],
             'industry_id' => ['nullable', 'integer', 'exists:industries,id'],
             'country_id' => ['required', 'integer', 'exists:countries,id'],

@@ -11,11 +11,11 @@ import {
   Loader2,
   Save,
 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { employerCompany, publicApi } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { EmployerCompany, TaxonomyItem } from "@/lib/api/types";
+import RoleShell from "@/components/RoleShell";
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"];
 
@@ -180,19 +180,17 @@ export default function CompanyProfilePage() {
 
   if (!authLoading && user && !user.roles.includes("employer") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="employer">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Employers only</h1>
           <p className="mt-2 text-slate-500">This page needs an employer account.</p>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="employer">
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900">Company Profile</h1>
@@ -466,6 +464,6 @@ export default function CompanyProfilePage() {
           </>
         )}
       </main>
-    </>
+    </RoleShell>
   );
 }

@@ -12,12 +12,12 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { employerJobs } from "@/lib/api/endpoints";
 import { useApiResource } from "@/lib/hooks/useApiResource";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { EmployerJob } from "@/lib/api/types";
+import RoleShell from "@/components/RoleShell";
 
 const STATUS_STYLE: Record<string, string> = {
   published: "bg-emerald-50 text-emerald-700",
@@ -83,19 +83,17 @@ export default function EmployerJobsPage() {
 
   if (!authLoading && user && !user.roles.includes("employer") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="employer">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Employers only</h1>
           <p className="mt-2 text-slate-500">This area needs an employer account.</p>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="employer">
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -276,7 +274,7 @@ export default function EmployerJobsPage() {
           ))}
         </div>
       </main>
-    </>
+    </RoleShell>
   );
 }
 

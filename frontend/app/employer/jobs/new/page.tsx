@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import JobForm from "@/components/employer/JobForm";
+import RoleShell from "@/components/RoleShell";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
 /**
@@ -27,8 +27,7 @@ export default function PostJobPage() {
 
   if (!authLoading && user && !user.roles.includes("employer") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="employer">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Employers only</h1>
           <p className="mt-2 text-slate-500">
@@ -41,7 +40,7 @@ export default function PostJobPage() {
             Register as an employer
           </Link>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
@@ -57,8 +56,7 @@ export default function PostJobPage() {
           : "It has been saved as a draft — publish it when you are ready.";
 
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="employer">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
@@ -86,13 +84,12 @@ export default function PostJobPage() {
             </div>
           </div>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="employer">
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Link
@@ -105,6 +102,6 @@ export default function PostJobPage() {
 
         <JobForm key={formKey} onSaved={setDone} />
       </main>
-    </>
+    </RoleShell>
   );
 }

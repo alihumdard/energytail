@@ -114,7 +114,11 @@ export default function JobCard({ job }: { job: JobSummary }) {
   const salary = salaryLabel(job);
   const experience = experienceLabel(job);
   const posted = relative(job.published_at);
-  const thumbnail = jobThumbnail(job.category?.slug ?? null, job.slug);
+  const thumbnail = jobThumbnail(
+    job.category?.slug ?? null,
+    job.slug,
+    job.featured_image_path,
+  );
 
   /*
    * Defaulted rather than trusted: these fields are new, and a cached
@@ -126,7 +130,10 @@ export default function JobCard({ job }: { job: JobSummary }) {
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-2xl border bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+      // flex column, full height: in a grid the cards are stretched to a
+      // common height, and without this the content sat at the top of each
+      // one leaving the footers at different heights down the row.
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg ${
         job.is_featured
           ? "border-blue-200 ring-1 ring-blue-100"
           : "border-slate-100"
@@ -143,7 +150,7 @@ export default function JobCard({ job }: { job: JobSummary }) {
         aria-hidden="true"
       />
 
-      <div className="p-4 sm:p-5">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
         {/*
           A post header, the way a feed card opens: who posted, and when.
           The job title leads the body below it. Laid out this way rather
@@ -234,7 +241,10 @@ export default function JobCard({ job }: { job: JobSummary }) {
             to ~200 characters by the API; clamped to two lines as well, so
             one long unbroken sentence cannot stretch the card. */}
         {job.excerpt && (
-          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">
+          // Three lines in a narrow column, two on a full-width row: the
+          // clamp is there to keep cards even, and two lines of a
+          // three-across column is barely a sentence.
+          <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-500 lg:line-clamp-2">
             {job.excerpt}
           </p>
         )}
@@ -247,7 +257,10 @@ export default function JobCard({ job }: { job: JobSummary }) {
         */}
         <Link
           href={`/jobs/${job.slug}`}
-          className="relative z-10 mt-3 block aspect-[21/9] overflow-hidden rounded-xl bg-slate-100"
+          // 16:9 in a narrow column, widening to 21:9 only where the card
+          // has the width to carry it — at three or four across, 21:9 cuts
+          // the photo to a letterbox sliver.
+          className="relative z-10 mt-3 block aspect-video overflow-hidden rounded-xl bg-slate-100 sm:aspect-[21/9]"
           tabIndex={-1}
           aria-hidden="true"
         >
@@ -339,7 +352,15 @@ export default function JobCard({ job }: { job: JobSummary }) {
           </div>
         )}
 
-        <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-3.5">
+        {/* Wraps: in a three-across column the date and the button cannot
+            share a line, and without this the button was squeezed to a
+            sliver rather than dropping below. */}
+        {/* flex-1 lets the footer absorb a stretched card's spare height and
+            items-end holds its contents at the bottom, so the "View job"
+            buttons line up across a row instead of sitting wherever each
+            card's text happened to end. The margin still guarantees a gap
+            when there is no slack to absorb. */}
+        <div className="mt-3.5 flex flex-1 flex-wrap items-end justify-between gap-x-3 gap-y-2.5 border-t border-slate-100 pt-3.5">
           {job.deadline_at ? (
             <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
               <CalendarClock className="h-3.5 w-3.5 shrink-0" />

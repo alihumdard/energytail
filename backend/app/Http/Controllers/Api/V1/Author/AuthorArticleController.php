@@ -10,6 +10,7 @@ use App\Models\Setting;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -115,7 +116,13 @@ class AuthorArticleController extends Controller
     {
         $this->authorize('view', $article);
 
-        $article->load(['category:id,name,slug', 'reviewer:id,first_name,last_name']);
+        // Tags too: the edit form pre-selects them, and an unloaded relation
+        // transforms to an empty list, which would silently clear them.
+        $article->load([
+            'category:id,name,slug',
+            'reviewer:id,first_name,last_name',
+            'tags:id,name,slug',
+        ]);
 
         return response()->json(['data' => $this->transform($article, detailed: true)]);
     }
@@ -127,6 +134,8 @@ class AuthorArticleController extends Controller
         $validated = $this->validated($request);
 
         $publishing = ($validated['status'] ?? Article::STATUS_DRAFT) !== Article::STATUS_DRAFT;
+
+        $validated = $this->withFeaturedImage($request, $validated);
 
         $article = Article::query()->create($this->attributes($validated) + [
             'author_id' => $request->user()?->getKey(),
@@ -150,7 +159,10 @@ class AuthorArticleController extends Controller
                 Article::STATUS_PENDING_REVIEW => 'Article submitted for review.',
                 default => 'Article saved as a draft.',
             },
-            'data' => $this->transform($article->fresh(['category', 'reviewer']), detailed: true),
+            'data' => $this->transform(
+                $this->syncTags($article, $validated)->fresh(['category', 'reviewer', 'tags']),
+                detailed: true,
+            ),
         ], 201);
     }
 
@@ -161,7 +173,7 @@ class AuthorArticleController extends Controller
         // through review and then rewrite it.
         $this->authorize('update', $article);
 
-        $validated = $this->validated($request);
+        $validated = $this->withFeaturedImage($request, $this->validated($request), $article);
 
         $attributes = $this->attributes($validated);
 
@@ -179,12 +191,16 @@ class AuthorArticleController extends Controller
         }
 
         $article->update($attributes);
+        $this->syncTags($article, $validated);
 
         return response()->json([
             'message' => $article->status === Article::STATUS_PENDING_REVIEW
                 ? 'Article submitted for review.'
                 : 'Article updated.',
-            'data' => $this->transform($article->fresh(['category', 'reviewer']), detailed: true),
+            'data' => $this->transform(
+                $article->fresh(['category', 'reviewer', 'tags']),
+                detailed: true,
+            ),
         ]);
     }
 
@@ -198,6 +214,68 @@ class AuthorArticleController extends Controller
     }
 
     /** @return array<string, mixed> */
+    /**
+     * Resolves the uploaded image into the attribute the model stores.
+     *
+     * Three cases, and the difference matters: a file replaces the image,
+     * remove_featured_image clears it, and neither means leave whatever is
+     * there alone — an edit that does not touch the picture must not wipe it.
+     *
+     * The previous file is deleted once its replacement is in place, so
+     * editing a piece repeatedly does not leave orphans on disk.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withFeaturedImage(Request $request, array $data, ?Article $article = null): array
+    {
+        // Not columns — they exist only to say what to do with the file.
+        unset($data['featured_image'], $data['remove_featured_image']);
+
+        $previous = $article?->featured_image_path;
+
+        if ($request->hasFile('featured_image')) {
+            $data['featured_image_path'] = $request
+                ->file('featured_image')
+                ->store('articles', 'public');
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+
+            return $data;
+        }
+
+        if ($request->boolean('remove_featured_image')) {
+            $data['featured_image_path'] = null;
+            $data['featured_image_alt'] = null;
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Attaches the chosen tags, when the request mentioned them at all.
+     *
+     * A request that omits tags leaves the existing ones alone; sending an
+     * empty array is how they are cleared. Syncing unconditionally would
+     * strip every tag from any edit that did not resend them.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function syncTags(Article $article, array $data): Article
+    {
+        if (array_key_exists('tags', $data)) {
+            $article->tags()->sync($data['tags'] ?? []);
+        }
+
+        return $article;
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
@@ -208,6 +286,28 @@ class AuthorArticleController extends Controller
             'meta_title' => ['sometimes', 'nullable', 'string', 'max:160'],
             'meta_description' => ['sometimes', 'nullable', 'string', 'max:320'],
             'comments_enabled' => ['sometimes', 'boolean'],
+
+            /*
+             * The article's lead image. Optional: a piece without one falls
+             * back to a photo chosen from its category, which is what every
+             * article showed before this field was reachable.
+             *
+             * 'image' restricts this to real image types rather than
+             * trusting the extension. 4MB, in kilobytes: a photograph
+             * straight off a phone routinely passes 2MB, and an author
+             * should not have to resize one before writing.
+             */
+            'featured_image' => ['sometimes', 'nullable', 'file', 'image', 'max:4096'],
+            'featured_image_alt' => ['sometimes', 'nullable', 'string', 'max:200'],
+            // Sent to clear an existing image without replacing it; an absent
+            // file means "leave it alone", which is what an edit that does
+            // not touch the picture has to mean.
+            'remove_featured_image' => ['sometimes', 'boolean'],
+
+            // Existing tags only — an author picks from the taxonomy rather
+            // than inventing entries in it.
+            'tags' => ['sometimes', 'array', 'max:10'],
+            'tags.*' => ['integer', 'exists:tags,id'],
             // Draft or submit. Published, rejected and scheduled are decided
             // by a moderator, never asked for here.
             'status' => ['sometimes', Rule::in([
@@ -229,7 +329,20 @@ class AuthorArticleController extends Controller
     {
         $attributes = [];
 
-        foreach (['title', 'body', 'excerpt', 'article_category_id', 'meta_title', 'meta_description', 'comments_enabled'] as $field) {
+        /*
+         * featured_image_path is resolved from the upload before this runs,
+         * and belongs in the list for the same reason as the rest: a key
+         * missing from it is dropped silently, so the file would reach disk
+         * and the column would stay null.
+         *
+         * array_key_exists rather than isset throughout, so an explicit null
+         * — clearing the image — is written instead of skipped.
+         */
+        foreach ([
+            'title', 'body', 'excerpt', 'article_category_id',
+            'featured_image_path', 'featured_image_alt',
+            'meta_title', 'meta_description', 'comments_enabled',
+        ] as $field) {
             if (array_key_exists($field, $data)) {
                 $attributes[$field] = $data[$field];
             }
@@ -300,6 +413,12 @@ class AuthorArticleController extends Controller
         return $base + [
             'body' => $article->body,
             'article_category_id' => $article->article_category_id,
+            'featured_image_path' => $article->featured_image_path,
+            'featured_image_alt' => $article->featured_image_alt,
+            // Ids, not names: the form pre-selects from them.
+            'tags' => $article->relationLoaded('tags')
+                ? $article->tags->pluck('id')->all()
+                : [],
             'comments_enabled' => $article->comments_enabled,
             'meta_title' => $article->meta_title,
             'meta_description' => $article->meta_description,

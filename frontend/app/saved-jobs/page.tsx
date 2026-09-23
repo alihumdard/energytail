@@ -3,11 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Bookmark, Loader2, MapPin, Search, Trash2 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { seeker } from "@/lib/api/endpoints";
 import { useApiResource } from "@/lib/hooks/useApiResource";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import RoleShell from "@/components/RoleShell";
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -49,8 +49,7 @@ export default function SavedJobsPage() {
 
   if (!authLoading && !user) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="seeker">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Sign in to see your saved jobs</h1>
           <Link
@@ -60,13 +59,12 @@ export default function SavedJobsPage() {
             Sign in
           </Link>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="seeker">
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
         <div className="mb-6">
@@ -201,6 +199,6 @@ export default function SavedJobsPage() {
           )}
         </div>
       </main>
-    </>
+    </RoleShell>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import DashboardShell, { NavSection } from "@/components/DashboardShell";
+import RoleShell from "@/components/RoleShell";
 import {
   Home,
   FileText,
@@ -21,34 +21,6 @@ import { authorArticles } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { AuthorArticle, AuthorArticleStats } from "@/lib/api/types";
 import RequireRole from "@/components/auth/RequireRole";
-
-const sections: NavSection[] = [
-  {
-    title: "MAIN",
-    items: [
-      {
-        label: "Dashboard",
-        icon: Home,
-        href: "/author-dashboard",
-        permission: "dashboard.view",
-        active: true,
-      },
-      {
-        label: "My Articles",
-        icon: FileText,
-        href: "/author/articles",
-        permission: "articles.view",
-      },
-      {
-        label: "Write Article",
-        icon: PenLine,
-        href: "/author/articles/new",
-        permission: "articles.add",
-      },
-      { label: "Read the Feed", icon: FileEdit, href: "/articles" },
-    ],
-  },
-];
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   published: {
@@ -140,14 +112,7 @@ export default function AuthorDashboardPage() {
 
   return (
     <RequireRole roles={["author", "administrator"]}>
-      <DashboardShell
-        sections={sections}
-        searchPlaceholder="Search your articles..."
-        searchTypeLabel="Articles"
-        notifCount={0}
-        planTitle="Write for Energy Tail"
-        planBody="Share your expertise with oil, gas and renewable energy professionals."
-      >
+      <RoleShell role="author">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
@@ -406,7 +371,7 @@ export default function AuthorDashboardPage() {
             </div>
           </div>
         </div>
-      </DashboardShell>
+      </RoleShell>
     </RequireRole>
   );
 }

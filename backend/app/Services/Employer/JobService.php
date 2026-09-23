@@ -184,6 +184,19 @@ class JobService
             'responsibilities' => $data['responsibilities'] ?? null,
             'requirements' => $data['requirements'] ?? null,
             'benefits' => $data['benefits'] ?? null,
+
+            /*
+             * Only written when the caller resolved one.
+             *
+             * This list is a whitelist, so a key absent from it is dropped
+             * before the insert — which is how the upload reached disk and
+             * the column stayed null. It cannot default to null either: an
+             * edit that leaves the picture alone sends no key, and a null
+             * default would wipe the existing image on every save.
+             */
+            ...(array_key_exists('featured_image_path', $data)
+                ? ['featured_image_path' => $data['featured_image_path']]
+                : []),
             'experience_min' => $data['experience_min'] ?? null,
             'experience_max' => $data['experience_max'] ?? null,
             'salary_min' => $data['salary_min'] ?? null,

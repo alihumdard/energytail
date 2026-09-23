@@ -3,12 +3,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Bell, BellOff, Loader2, Plus, Trash2 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { publicApi, seeker } from "@/lib/api/endpoints";
 import { useApiResource } from "@/lib/hooks/useApiResource";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { JobAlert, TaxonomyItem } from "@/lib/api/types";
+import RoleShell from "@/components/RoleShell";
 
 const EMPLOYMENT_TYPES = [
   { value: "", label: "Any type" },
@@ -146,8 +146,7 @@ export default function JobAlertsPage() {
 
   if (!authLoading && !user) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="seeker">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Sign in to manage your alerts</h1>
           <Link
@@ -157,13 +156,12 @@ export default function JobAlertsPage() {
             Sign in
           </Link>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="seeker">
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -455,6 +453,6 @@ export default function JobAlertsPage() {
           </div>
         </div>
       )}
-    </>
+    </RoleShell>
   );
 }

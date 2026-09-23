@@ -46,9 +46,17 @@ class TaxonomySeeder extends Seeder
         ];
 
         foreach ($rows as $i => [$name, $description, $emoji, $color]) {
-            Industry::updateOrCreate(
+            // withTrashed(): a soft-deleted row still owns its unique slug, and a
+            // plain updateOrCreate() cannot see past the scope — it tries to
+            // insert a fresh row and collides with the slug the trashed one
+            // still holds, which is what made re-running this seeder fail.
+            Industry::withTrashed()->updateOrCreate(
                 ['slug' => Str::slug($name)],
-                compact('name', 'description', 'emoji', 'color') + ['sort_order' => $i + 1]
+                compact('name', 'description', 'emoji', 'color')
+                    // Brought back if it had been deleted: the row was matched
+                    // through the trashed scope, so without this it would be
+                    // updated and stay hidden.
+                    + ['sort_order' => $i + 1, 'deleted_at' => null]
             );
         }
     }
@@ -144,7 +152,11 @@ class TaxonomySeeder extends Seeder
         foreach ($groups as $groupName => [$emoji, $color, $children]) {
             $groupIndex++;
 
-            $parent = JobCategory::updateOrCreate(
+            // withTrashed(): a soft-deleted row still owns its unique slug, and a
+            // plain updateOrCreate() cannot see past the scope — it tries to
+            // insert a fresh row and collides with the slug the trashed one
+            // still holds, which is what made re-running this seeder fail.
+            $parent = JobCategory::withTrashed()->updateOrCreate(
                 ['slug' => Str::slug($groupName)],
                 [
                     'name' => $groupName,
@@ -154,6 +166,10 @@ class TaxonomySeeder extends Seeder
                     'parent_id' => null,
                     'sort_order' => $groupIndex,
                     'is_featured' => true,
+                    // Brought back if it had been deleted: the row was matched
+                    // through the trashed scope, so leaving this out would update
+                    // a hidden row and the taxonomy would stay missing.
+                    'deleted_at' => null,
                 ]
             );
 
@@ -178,7 +194,7 @@ class TaxonomySeeder extends Seeder
                     $childSlug .= '-discipline';
                 }
 
-                JobCategory::updateOrCreate(
+                JobCategory::withTrashed()->updateOrCreate(
                     ['slug' => $childSlug],
                     [
                         'name' => $childName,
@@ -188,6 +204,10 @@ class TaxonomySeeder extends Seeder
                         'parent_id' => $parent->id,
                         'sort_order' => $childIndex + 1,
                         'is_featured' => false,
+                        // Brought back if it had been deleted: the row was matched
+                        // through the trashed scope, so leaving this out would update
+                        // a hidden row and the taxonomy would stay missing.
+                        'deleted_at' => null,
                     ]
                 );
             }
@@ -235,9 +255,14 @@ class TaxonomySeeder extends Seeder
         ];
 
         foreach ($rows as $i => [$name, $color]) {
-            ArticleCategory::updateOrCreate(
+            ArticleCategory::withTrashed()->updateOrCreate(
                 ['slug' => Str::slug($name).'-articles'],
-                ['name' => $name, 'color' => $color, 'sort_order' => $i + 1]
+                [
+                    'name' => $name,
+                    'color' => $color,
+                    'sort_order' => $i + 1,
+                    'deleted_at' => null,
+                ]
             );
         }
     }
@@ -268,7 +293,7 @@ class TaxonomySeeder extends Seeder
         $order = 0;
 
         foreach ($rows as $name => [$code, $region, $flag, $cities]) {
-            $country = Country::updateOrCreate(
+            $country = Country::withTrashed()->updateOrCreate(
                 ['code' => $code],
                 [
                     'name' => $name,
@@ -276,15 +301,24 @@ class TaxonomySeeder extends Seeder
                     'region' => $region,
                     'flag_emoji' => $flag,
                     'sort_order' => ++$order,
+                    // Brought back if it had been deleted: the row was matched
+                    // through the trashed scope, so leaving this out would update
+                    // a hidden row and the taxonomy would stay missing.
+                    'deleted_at' => null,
                 ]
             );
 
             $cityOrder = 0;
 
             foreach ($cities as $cityName => $cityRegion) {
-                City::updateOrCreate(
+                City::withTrashed()->updateOrCreate(
                     ['country_id' => $country->id, 'slug' => Str::slug($cityName)],
-                    ['name' => $cityName, 'region' => $cityRegion, 'sort_order' => ++$cityOrder]
+                    [
+                        'name' => $cityName,
+                        'region' => $cityRegion,
+                        'sort_order' => ++$cityOrder,
+                        'deleted_at' => null,
+                    ]
                 );
             }
         }
@@ -539,13 +573,17 @@ class TaxonomySeeder extends Seeder
         ];
 
         foreach ($rows as $i => [$name, $category, $demand]) {
-            Skill::updateOrCreate(
+            Skill::withTrashed()->updateOrCreate(
                 ['slug' => Str::slug($name)],
                 [
                     'name' => $name,
                     'category' => $category,
                     'demand_level' => $demand,
                     'sort_order' => $i + 1,
+                    // Brought back if it had been deleted: the row was matched
+                    // through the trashed scope, so leaving this out would update
+                    // a hidden row and the taxonomy would stay missing.
+                    'deleted_at' => null,
                 ]
             );
         }
@@ -569,9 +607,9 @@ class TaxonomySeeder extends Seeder
         ];
 
         foreach ($rows as [$name, $color]) {
-            Tag::updateOrCreate(
+            Tag::withTrashed()->updateOrCreate(
                 ['slug' => Str::slug($name)],
-                ['name' => $name, 'color' => $color]
+                ['name' => $name, 'color' => $color, 'deleted_at' => null]
             );
         }
     }

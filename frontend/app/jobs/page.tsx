@@ -296,6 +296,7 @@ export default async function JobsPage({
               lastPage={meta.last_page}
               hrefFor={pageHref}
               label="Job results pages"
+              hasResults={results.length > 0}
             />
           </section>
         </div>

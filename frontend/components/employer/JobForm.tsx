@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2, Save, Send } from "lucide-react";
+import { Image as ImageIcon, Loader2, Save, Send, Upload } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { adminCompanies, employerJobs, publicApi } from "@/lib/api/endpoints";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import { resolveUpload } from "@/lib/thumbnails";
 import type { EmployerJob, TaxonomyItem } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
@@ -119,6 +121,38 @@ export default function JobForm({
   const [industries, setIndustries] = useState<TaxonomyItem[]>([]);
   const [countries, setCountries] = useState<TaxonomyItem[]>([]);
 
+  /**
+   * The chosen image, and whether an existing one is being cleared.
+   *
+   * Kept outside `form` because a File is not a string and must not be
+   * serialised with the rest of the payload — it decides whether the
+   * request goes as JSON or as multipart.
+   */
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+
+  /**
+   * A local URL for the chosen file, so the preview shows the new pick
+   * rather than the image it is about to replace.
+   *
+   * Created in an effect and revoked on cleanup: an object URL holds the
+   * file in memory until it is released, and picking several images in a
+   * row would leak every one of them.
+   */
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setObjectUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(imageFile);
+    setObjectUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
   );
@@ -213,6 +247,42 @@ export default function JobForm({
   const cities =
     loadedCities.countryId === form.country_id ? loadedCities.items : [];
 
+  /**
+   * The JSON payload as multipart, for a request carrying a file.
+   *
+   * Booleans are written as "1"/"0" rather than let through String(): a
+   * bare "false" is a non-empty string, which Laravel's boolean rule reads
+   * as true — so "remote: no" would arrive as yes.
+   *
+   * Arrays are sent as name[] entries, which is how PHP reconstructs a
+   * list; a single append of a joined string would arrive as one value.
+   */
+  function toFormData(
+    payload: Record<string, unknown>,
+    file: File | null,
+    clearImage: boolean,
+  ): FormData {
+    const data = new FormData();
+
+    for (const [key, value] of Object.entries(payload)) {
+      if (value === undefined || value === null) continue;
+
+      if (typeof value === "boolean") {
+        data.append(key, value ? "1" : "0");
+      } else if (Array.isArray(value)) {
+        for (const item of value) data.append(`${key}[]`, String(item));
+      } else {
+        data.append(key, String(value));
+      }
+    }
+
+    if (file) data.append("featured_image", file);
+    // Only meaningful without a replacement: a new file supersedes it.
+    if (clearImage && !file) data.append("remove_featured_image", "1");
+
+    return data;
+  }
+
   async function submit(event: FormEvent, status: "draft" | "published") {
     event.preventDefault();
     setSubmitting(status === "draft" ? "draft" : "publish");
@@ -278,9 +348,18 @@ export default function JobForm({
         }
       }
 
+      /*
+       * A file cannot travel as JSON, so the whole payload becomes
+       * multipart the moment one is attached. Everything else still goes as
+       * JSON, which keeps the common case — an edit that does not touch the
+       * picture — exactly as it was.
+       */
+      const body =
+        imageFile || removeImage ? toFormData(payload, imageFile, removeImage) : payload;
+
       const { data } = job
-        ? await employerJobs.update(job.id, payload)
-        : await employerJobs.create(payload);
+        ? await employerJobs.update(job.id, body)
+        : await employerJobs.create(body);
 
       onSaved({ title: data.title, status: data.status });
     } catch (err) {
@@ -292,6 +371,16 @@ export default function JobForm({
       setSubmitting(null);
     }
   }
+
+  /*
+   * What the preview shows: the newly picked file, or the saved image
+   * while none has been picked and none is being removed.
+   */
+  const imagePreview =
+    objectUrl ??
+    (!removeImage && job?.featured_image_path
+      ? resolveUpload(job.featured_image_path)
+      : null);
 
   const fieldError = (name: string) => error?.fieldError(name);
 
@@ -344,22 +433,34 @@ export default function JobForm({
 
         <Card title="The role">
           {isAdmin && (
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">
-                Company <span className="text-red-500">*</span>
-              </span>
-              <select
-                value={form.company_id}
-                onChange={(event) => set("company_id", event.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+            // A div, not a label: a label wrapping this control would
+            // forward every click inside it — including clicks on an option
+            // in the open list — back to the button that opens it.
+            <div className="block">
+              <label
+                htmlFor="company_id"
+                className="text-sm font-medium text-slate-700"
               >
-                <option value="">Choose the company this job is for…</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
+                Company <span className="text-red-500">*</span>
+              </label>
+              {/* Searchable: this list is loaded 200 at a time, and an
+                  administrator picking one employer out of that many by
+                  scrolling is the slow path. */}
+              <div className="mt-1">
+                <SearchableSelect
+                  id="company_id"
+                  options={companies.map((company) => ({
+                    value: company.id,
+                    label: company.name,
+                  }))}
+                  value={form.company_id || null}
+                  onChange={(next) =>
+                    set("company_id", next === null ? "" : String(next))
+                  }
+                  placeholder="Choose the company this job is for…"
+                  invalid={Boolean(fieldError("company_id"))}
+                />
+              </div>
               {fieldError("company_id") && (
                 <span className="mt-1 block text-xs text-red-600">
                   {fieldError("company_id")}
@@ -369,7 +470,7 @@ export default function JobForm({
                 You are posting on an employer&apos;s behalf, so the listing needs a
                 company to belong to.
               </span>
-            </label>
+            </div>
           )}
 
           <Field
@@ -391,6 +492,83 @@ export default function JobForm({
             hint="At least 50 characters."
             error={fieldError("description")}
           />
+
+          {/*
+            The listing's image. Optional on purpose: a job without one
+            still gets a photograph chosen from its category, which is what
+            every listing showed before this field existed.
+          */}
+          <div>
+            <span className="text-sm font-medium text-slate-700">
+              Feature image
+            </span>
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-4">
+              {/* A preview, so the choice can be checked before saving —
+                  a filename alone says nothing about what was picked. */}
+              <span className="relative grid h-24 w-40 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex flex-col items-center gap-1 text-slate-400">
+                    <ImageIcon className="h-5 w-5" />
+                    <span className="text-[11px]">No image</span>
+                  </span>
+                )}
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-600">
+                  <Upload className="h-4 w-4" />
+                  {imagePreview ? "Replace image" : "Upload image"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+
+                      setImageFile(file);
+                      // Choosing a file overrides a pending removal — the
+                      // two together would delete the upload just made.
+                      if (file) setRemoveImage(false);
+                    }}
+                  />
+                </label>
+
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null);
+                      // Only an image already saved needs removing on the
+                      // server; an unsaved pick is just discarded.
+                      setRemoveImage(Boolean(job?.featured_image_path));
+                    }}
+                    className="ml-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                )}
+
+                <p className="mt-2 text-xs text-slate-400">
+                  JPG, PNG or WebP, up to 4MB. Shown on the job card and at
+                  the top of the listing. Leave empty to use a photo from
+                  the job&apos;s category.
+                </p>
+
+                {fieldError("featured_image") && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldError("featured_image")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
 
           <Area
             label="Responsibilities"
@@ -797,24 +975,33 @@ function Select({
           {label} {required && <span className="text-red-500">*</span>}
         </Label>
       </label>
-      <select
-        id={id}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-50"
-      >
-        <option value="">
-          {disabled
-            ? "Choose a country first"
-            : `Select ${label.toLowerCase()}…`}
-        </option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
+      {/*
+        Searchable rather than native. The country list runs to 193 and the
+        categories to 62, and finding one by scrolling — or by typing blind
+        against a native select's first-letter matching — was the slowest
+        part of posting a job.
+      */}
+      <div className="mt-1">
+        <SearchableSelect
+          id={id}
+          options={options.map((o) => ({
+            value: o.id,
+            label: o.name,
+            // Countries carry a flag and a code; the code is searchable
+            // too, so "AE" finds the United Arab Emirates.
+            prefix: o.flag_emoji ?? undefined,
+            hint: o.code ?? o.region ?? undefined,
+          }))}
+          value={value || null}
+          onChange={(next) => onChange(next === null ? "" : String(next))}
+          disabled={disabled}
+          invalid={Boolean(error)}
+          placeholder={
+            disabled ? "Choose a country first" : `Select ${label.toLowerCase()}…`
+          }
+          clearable={!required}
+        />
+      </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

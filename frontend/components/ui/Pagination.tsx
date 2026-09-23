@@ -8,6 +8,14 @@ interface Props {
   hrefFor: (page: number) => string;
   /** Describes the list being paged, for screen readers. */
   label?: string;
+  /**
+   * Whether the list has any results at all.
+   *
+   * The API reports last_page as 1 for an empty result, so the page count
+   * alone cannot tell "one page of results" from "nothing matched" — and a
+   * lone "1" above an empty-state message reads as a broken control.
+   */
+  hasResults?: boolean;
 }
 
 /**
@@ -62,8 +70,17 @@ export default function Pagination({
   lastPage,
   hrefFor,
   label = "Pagination",
+  hasResults = true,
 }: Props) {
-  if (lastPage <= 1) return null;
+  /*
+   * A single page still renders, as "1" with both arrows disabled.
+   *
+   * Hiding the control entirely left a list that fits on one page looking
+   * like a list whose paging had gone missing. Showing it says the results
+   * end here — and the arrows being visibly unavailable is the difference
+   * between "nothing more" and "nothing loaded".
+   */
+  if (!hasResults || lastPage < 1) return null;
 
   const pages = pageWindow(currentPage, lastPage);
 
@@ -81,12 +98,18 @@ export default function Pagination({
           <span className="hidden sm:inline">Previous</span>
         </Link>
       ) : (
-        // Kept in the layout rather than removed, so the numbers do not
-        // shift sideways when the first page is reached.
-        <span className={`${arrow} cursor-not-allowed opacity-40`} aria-hidden="true">
+        // A real disabled button, kept in the layout so the numbers do not
+        // shift sideways at the first page. Not aria-hidden: a reader
+        // should be told the control exists and is unavailable, rather
+        // than finding no previous control at all.
+        <button
+          type="button"
+          disabled
+          className={`${arrow} cursor-not-allowed opacity-40 hover:border-slate-200 hover:bg-white`}
+        >
           <ChevronLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Previous</span>
-        </span>
+        </button>
       )}
 
       {pages.map((page, index) =>
@@ -124,10 +147,14 @@ export default function Pagination({
           <ChevronRight className="h-4 w-4" />
         </Link>
       ) : (
-        <span className={`${arrow} cursor-not-allowed opacity-40`} aria-hidden="true">
+        <button
+          type="button"
+          disabled
+          className={`${arrow} cursor-not-allowed opacity-40 hover:border-slate-200 hover:bg-white`}
+        >
           <span className="hidden sm:inline">Next</span>
           <ChevronRight className="h-4 w-4" />
-        </span>
+        </button>
       )}
     </nav>
   );

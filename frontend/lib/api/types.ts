@@ -176,6 +176,8 @@ export interface JobSummary {
   /** Plain-text opening of the description, already cut to ~200 chars by
    *  the API so a 15-job page does not ship fifteen full descriptions. */
   excerpt: string | null;
+  /** The employer's own image. Null falls back to a category photo. */
+  featured_image_path: string | null;
   skills: NamedRef[];
   employment_type: string | null;
   is_remote: boolean;
@@ -247,6 +249,8 @@ export interface EmployerJob {
   title: string;
   slug: string;
   status: string;
+  /** The employer's uploaded image, if they added one. */
+  featured_image_path?: string | null;
   employment_type: string | null;
   is_remote: boolean;
   is_featured: boolean;
@@ -461,6 +465,11 @@ export interface AuthorArticle {
   // Present only on the detail response.
   body?: string | null;
   article_category_id?: number | null;
+  /** The author's uploaded lead image, if they added one. */
+  featured_image_path?: string | null;
+  featured_image_alt?: string | null;
+  /** Tag ids, for the form to pre-select. */
+  tags?: number[];
   comments_enabled?: boolean;
   meta_title?: string | null;
   meta_description?: string | null;

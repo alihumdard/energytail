@@ -332,6 +332,9 @@ class PublicJobController extends Controller
             'title' => $job->title,
             'slug' => $job->slug,
             'excerpt' => $this->excerpt($job->description),
+            // In the summary, not just the detail: the card is where the
+            // image is most useful, and it is one nullable string.
+            'featured_image_path' => $job->featured_image_path,
             'skills' => $job->relationLoaded('skills')
                 ? $job->skills->map(fn ($s) => ['name' => $s->name, 'slug' => $s->slug])->all()
                 : [],

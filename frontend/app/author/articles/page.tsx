@@ -12,12 +12,12 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import SiteHeader from "@/components/SiteHeader";
 import { ApiError } from "@/lib/api/client";
 import { authorArticles } from "@/lib/api/endpoints";
 import { useApiResource, useDebounced } from "@/lib/hooks/useApiResource";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { AuthorArticle } from "@/lib/api/types";
+import RoleShell from "@/components/RoleShell";
 
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
   published: { label: "Published", className: "bg-emerald-50 text-emerald-700" },
@@ -92,19 +92,17 @@ export default function MyArticlesPage() {
 
   if (!authLoading && user && !user.roles.includes("author") && !user.roles.includes("administrator")) {
     return (
-      <>
-        <SiteHeader />
+      <RoleShell role="author">
         <main className="mx-auto max-w-2xl flex-1 px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-slate-900">Authors only</h1>
           <p className="mt-2 text-slate-500">This page needs an author account.</p>
         </main>
-      </>
+      </RoleShell>
     );
   }
 
   return (
-    <>
-      <SiteHeader />
+    <RoleShell role="author">
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -327,6 +325,6 @@ export default function MyArticlesPage() {
           </div>
         </div>
       )}
-    </>
+    </RoleShell>
   );
 }

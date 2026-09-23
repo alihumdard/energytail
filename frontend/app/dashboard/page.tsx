@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import DashboardShell, { NavSection } from "@/components/DashboardShell";
+import RoleShell from "@/components/RoleShell";
 import {
   Home,
   Bookmark,
@@ -20,40 +20,6 @@ import { seeker } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { SavedJob, SeekerDashboard } from "@/lib/api/types";
 import RequireRole from "@/components/auth/RequireRole";
-
-const sections: NavSection[] = [
-  {
-    title: "MAIN",
-    items: [
-      {
-        label: "Dashboard",
-        icon: Home,
-        href: "/dashboard",
-        permission: "dashboard.view",
-        active: true,
-      },
-      {
-        label: "Saved Jobs",
-        icon: Bookmark,
-        href: "/saved-jobs",
-        permission: "jobs.view",
-      },
-      {
-        label: "Job Alerts",
-        icon: Bell,
-        href: "/job-alerts",
-        permission: "jobs.view",
-      },
-      { label: "Find Jobs", icon: Search, href: "/jobs" },
-      {
-        label: "Companies",
-        icon: Briefcase,
-        href: "/companies",
-        permission: "companies.view",
-      },
-    ],
-  },
-];
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -139,14 +105,7 @@ export default function SeekerDashboardPage() {
 
   return (
     <RequireRole roles={["job_seeker", "administrator"]}>
-      <DashboardShell
-        sections={sections}
-        searchPlaceholder="Search jobs, companies..."
-        searchTypeLabel="Jobs"
-        notifCount={0}
-        planTitle="Get Noticed"
-        planBody="Complete your profile so employers can see who you are."
-      >
+      <RoleShell role="seeker">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
@@ -337,7 +296,7 @@ export default function SeekerDashboardPage() {
             </div>
           </div>
         </div>
-      </DashboardShell>
+      </RoleShell>
     </RequireRole>
   );
 }

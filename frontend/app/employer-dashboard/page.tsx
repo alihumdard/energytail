@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import DashboardShell, { NavSection } from "@/components/DashboardShell";
+import RoleShell from "@/components/RoleShell";
 import {
   Home,
   PlusCircle,
@@ -23,51 +23,6 @@ import { employerJobs } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { EmployerJob, EmployerJobStats } from "@/lib/api/types";
 import RequireRole from "@/components/auth/RequireRole";
-
-const sections: NavSection[] = [
-  {
-    title: "MAIN",
-    items: [
-      {
-        label: "Dashboard",
-        icon: Home,
-        href: "/employer-dashboard",
-        permission: "dashboard.view",
-        active: true,
-      },
-      {
-        label: "Post a Job",
-        icon: PlusCircle,
-        href: "/employer/jobs/new",
-        permission: "jobs.add",
-      },
-      {
-        label: "Jobs Management",
-        icon: Briefcase,
-        href: "/employer/jobs",
-        permission: "jobs.view",
-      },
-      { label: "Browse Jobs", icon: FileText, href: "/jobs" },
-    ],
-  },
-  {
-    title: "COMPANY",
-    items: [
-      {
-        label: "Company Profile",
-        icon: Building2,
-        href: "/employer/company-profile",
-        permission: "companies.view",
-      },
-      {
-        label: "Billing",
-        icon: CreditCard,
-        href: "/employer/billing",
-        permission: "companies.edit",
-      },
-    ],
-  },
-];
 
 const quickActions = [
   {
@@ -201,14 +156,7 @@ export default function EmployerDashboardPage() {
 
   return (
     <RequireRole roles={["employer", "administrator"]}>
-      <DashboardShell
-        sections={sections}
-        searchPlaceholder="Search jobs, candidates, companies..."
-        searchTypeLabel="Jobs"
-        notifCount={0}
-        planTitle="Upgrade Your Plan"
-        planBody="Get more visibility and better candidates by upgrading your subscription."
-      >
+      <RoleShell role="employer">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -488,7 +436,7 @@ export default function EmployerDashboardPage() {
             </div>
           </div>
         </div>
-      </DashboardShell>
+      </RoleShell>
     </RequireRole>
   );
 }

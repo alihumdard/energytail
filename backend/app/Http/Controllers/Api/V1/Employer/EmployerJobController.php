@@ -12,6 +12,7 @@ use App\Services\Employer\JobService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -117,7 +118,10 @@ class EmployerJobController extends Controller
     {
         $this->authorize('create', Job::class);
 
-        $job = $this->jobs->create($request->user(), $request->validated());
+        $job = $this->jobs->create(
+            $request->user(),
+            $this->withFeaturedImage($request, $request->validated()),
+        );
 
         return response()->json([
             // Three outcomes, not two: a draft is neither live nor waiting on
@@ -136,12 +140,59 @@ class EmployerJobController extends Controller
     {
         $this->authorize('update', $job);
 
-        $job = $this->jobs->update($job, $request->validated());
+        $job = $this->jobs->update(
+            $job,
+            $this->withFeaturedImage($request, $request->validated(), $job),
+        );
 
         return response()->json([
             'message' => 'Job updated.',
             'data' => $this->transform($job, detailed: true),
         ]);
+    }
+
+    /**
+     * Resolves the uploaded image into the attribute the model stores.
+     *
+     * Three cases, and the difference between them matters: a file replaces
+     * the image, remove_featured_image clears it, and neither means leave
+     * whatever is there alone — an edit that does not touch the picture must
+     * not wipe it.
+     *
+     * The previous file is deleted once its replacement is in place, so
+     * editing a listing repeatedly does not leave orphans on disk.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withFeaturedImage(Request $request, array $data, ?Job $job = null): array
+    {
+        // Not columns — they exist only to say what to do with the file.
+        unset($data['featured_image'], $data['remove_featured_image']);
+
+        $previous = $job?->featured_image_path;
+
+        if ($request->hasFile('featured_image')) {
+            $data['featured_image_path'] = $request
+                ->file('featured_image')
+                ->store('jobs', 'public');
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+
+            return $data;
+        }
+
+        if ($request->boolean('remove_featured_image')) {
+            $data['featured_image_path'] = null;
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -234,6 +285,7 @@ class EmployerJobController extends Controller
             'responsibilities' => $job->responsibilities,
             'requirements' => $job->requirements,
             'benefits' => $job->benefits,
+            'featured_image_path' => $job->featured_image_path,
             'experience_min' => $job->experience_min,
             'experience_max' => $job->experience_max,
             'salary_min' => $job->salary_min,
