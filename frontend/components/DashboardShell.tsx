@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/lib/auth/AuthProvider";
 import UserMenu from "@/components/admin/UserMenu";
 import UtilityBar from "@/components/UtilityBar";
+import Logo from "@/components/Logo";
 
 export type NavItem = {
   label: string;
@@ -178,11 +179,36 @@ export default function DashboardShell({
           Fixed while the mobile drawer is open, because a sticky element
           cannot escape a scrolled parent.
         */}
+        {/*
+          z-50 on the mobile drawer, above the topbar's z-40.
+
+          At z-30 it opened underneath the topbar, which is sticky and
+          opaque: the first 64px of the sidebar — its own heading and the
+          first nav entry — were covered by the bar, so the menu looked cut
+          off at the top. Sliding it below the bar instead would leave the
+          close button unreachable, so the drawer covers the bar and carries
+          its own header.
+        */}
         <aside
-          className={`fixed inset-y-0 left-0 z-30 flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform lg:sticky lg:inset-y-auto lg:top-16 lg:h-[calc(100vh-4rem)] lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] shrink-0 flex-col border-r border-slate-200 bg-white transition-transform lg:sticky lg:inset-y-auto lg:top-16 lg:z-30 lg:h-[calc(100vh-4rem)] lg:w-64 lg:max-w-none lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
+          {/*
+            The drawer's own bar, on mobile only. Without it the panel
+            opened with no way to close it except tapping the page behind,
+            and no indication of what had opened.
+          */}
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-4 lg:hidden">
+            <Logo />
+            <button
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
+              className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
           {/*
             Only the nav scrolls. Previously the whole sidebar was a viewport
             tall while starting below the topbar, so it overflowed by exactly
@@ -264,7 +290,10 @@ export default function DashboardShell({
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+            // z-40: over the page and the topbar, under the z-50 drawer.
+            // At z-20 it dimmed the content but left the topbar bright,
+            // so the bar looked like it belonged to the open menu.
+            className="fixed inset-0 z-40 bg-black/40 lg:hidden"
             onClick={() => setSidebarOpen(false)}
             aria-hidden
           />
