@@ -1,5 +1,6 @@
 import { Flame, Mail, Phone } from "lucide-react";
 import { Linkedin, Facebook, Twitter } from "@/components/Shared";
+import { SITE } from "@/lib/contact";
 
 /**
  * The thin dark strip above the header: tagline, contact details, socials.
@@ -26,25 +27,37 @@ export default function UtilityBar() {
           {/* Real mailto/tel links rather than plain text — on a phone the
               number should dial, and the address should open a compose window. */}
           <a
-            href="mailto:info@energytail.com"
+            href={`mailto:${SITE.email}`}
             className="flex items-center gap-1.5 transition-colors hover:text-white"
           >
-            <Mail size={13} /> info@energytail.com
+            <Mail size={13} /> {SITE.email}
           </a>
           <a
-            href="tel:+971501234567"
+            href={`tel:${SITE.phone.replace(/\s/g, "")}`}
             className="flex items-center gap-1.5 transition-colors hover:text-white"
           >
-            <Phone size={13} /> +971 50 123 4567
+            <Phone size={13} /> {SITE.phone}
           </a>
 
           {/*
-            Placeholder socials: there are no real profile URLs yet, so these
-            stay non-interactive rather than becoming links back to the
-            homepage, which is what they used to be.
+            An icon is only a link once there is a profile to point at. The
+            rest stay non-interactive rather than linking to "#", which
+            scrolls to the top of the page and reads as broken.
           */}
           <span className="flex items-center gap-3.5 border-l border-slate-600/60 pl-4">
-            <Linkedin />
+            {SITE.social.linkedin ? (
+              <a
+                href={SITE.social.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Energy Tail on LinkedIn"
+                className="transition-colors hover:text-white"
+              >
+                <Linkedin />
+              </a>
+            ) : (
+              <Linkedin />
+            )}
             <Facebook />
             <Twitter />
           </span>

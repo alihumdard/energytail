@@ -6,6 +6,7 @@ import type {
   WithContext,
 } from "schema-dts";
 import type { PublicArticle, PublicCompany } from "@/lib/api/types";
+import { SOCIAL_PROFILE_URLS } from "@/lib/contact";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl } from "./site";
 
 /**
@@ -23,6 +24,9 @@ export function websiteSchema(): WithContext<WebSite> {
     name: SITE_NAME,
     url: SITE_URL,
     description: SITE_DESCRIPTION,
+    // Ties the site to the profiles that represent it, so a search engine
+    // can show them as the same entity rather than guessing.
+    sameAs: SOCIAL_PROFILE_URLS,
     potentialAction: {
       "@type": "SearchAction",
       target: {

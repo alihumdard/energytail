@@ -32,8 +32,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Contact:{" "}
-          <a href="mailto:info@energytail.com" className="text-blue-600 hover:underline">
-            info@energytail.com
+          <a href="mailto:info.energytail@gmail.com" className="text-blue-600 hover:underline">
+            info.energytail@gmail.com
           </a>
         </p>
       </section>
@@ -475,8 +475,8 @@ export default function PrivacyPage() {
         </ul>
         <p>
           To exercise applicable rights, contact{" "}
-          <a href="mailto:info@energytail.com" className="text-blue-600 hover:underline">
-            info@energytail.com
+          <a href="mailto:info.energytail@gmail.com" className="text-blue-600 hover:underline">
+            info.energytail@gmail.com
           </a>
           .
         </p>
@@ -489,8 +489,8 @@ export default function PrivacyPage() {
         <p>
           You may request deletion of your Energy Tail account by contacting
           us at{" "}
-          <a href="mailto:info@energytail.com" className="text-blue-600 hover:underline">
-            info@energytail.com
+          <a href="mailto:info.energytail@gmail.com" className="text-blue-600 hover:underline">
+            info.energytail@gmail.com
           </a>{" "}
           or using available account controls.
         </p>
@@ -593,8 +593,8 @@ export default function PrivacyPage() {
           Energy Tail
           <br />
           Email:{" "}
-          <a href="mailto:info@energytail.com" className="text-blue-600 hover:underline">
-            info@energytail.com
+          <a href="mailto:info.energytail@gmail.com" className="text-blue-600 hover:underline">
+            info.energytail@gmail.com
           </a>
           <br />
           Website:{" "}

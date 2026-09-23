@@ -14,6 +14,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { SITE } from "@/lib/contact";
 
 /* ------------------------------------------------------- Brand SVG icons */
 
@@ -312,11 +313,11 @@ export function MarketingTopStrip() {
     <div className="bg-[#0B2B26] text-white">
       <div className="mx-auto flex h-11 max-w-[1440px] items-center gap-6 px-4 text-[12px] sm:px-6 lg:px-8">
         <span className="hidden items-center gap-2 md:flex">
-          <Mail className="h-3.5 w-3.5" /> info@energytail.com
+          <Mail className="h-3.5 w-3.5" /> {SITE.email}
         </span>
         <span className="hidden h-4 w-px bg-white/20 md:block" />
         <span className="hidden items-center gap-2 md:flex">
-          <Phone className="h-3.5 w-3.5" /> +971 50 123 4567
+          <Phone className="h-3.5 w-3.5" /> {SITE.phone}
         </span>
         <span className="mx-auto hidden items-center gap-2 lg:flex">
           <Zap className="h-3.5 w-3.5 text-brand-500" /> Connecting Energy Professionals with Top
@@ -465,16 +466,40 @@ export function DarkFooter() {
             <p className="mt-4 max-w-[280px] text-[12.5px] leading-relaxed text-white/60">
               Connecting energy professionals with top employers worldwide.
             </p>
+            {/*
+              Each icon is a link only where there is a profile to open. The
+              others keep their place in the row but are not clickable — an
+              href of "#" just scrolls to the top, which reads as a broken
+              link rather than as "coming soon".
+            */}
             <div className="mt-6 flex gap-3">
-              {[Linkedin, Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="grid h-9 w-9 place-items-center rounded-full border border-white/15 text-white/70 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              ))}
+              {[
+                { Icon: Linkedin, label: "LinkedIn", href: SITE.social.linkedin },
+                { Icon: Facebook, label: "Facebook", href: SITE.social.facebook },
+                { Icon: Twitter, label: "X", href: SITE.social.twitter },
+                { Icon: Instagram, label: "Instagram", href: SITE.social.instagram },
+                { Icon: Youtube, label: "YouTube", href: SITE.social.youtube },
+              ].map(({ Icon, label, href }) => {
+                const shell =
+                  "grid h-9 w-9 place-items-center rounded-full border border-white/15 text-white/70";
+
+                return href ? (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Energy Tail on ${label}`}
+                    className={`${shell} transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <span key={label} className={shell} aria-hidden>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                );
+              })}
             </div>
           </div>
           {darkFooterCols.map((col) => (

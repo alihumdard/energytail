@@ -626,8 +626,8 @@ export default function TermsPage() {
         </p>
         <p>
           Email:{" "}
-          <a href="mailto:info@energytail.com" className="text-blue-600 hover:underline">
-            info@energytail.com
+          <a href="mailto:info.energytail@gmail.com" className="text-blue-600 hover:underline">
+            info.energytail@gmail.com
           </a>
           <br />
           Website:{" "}
