@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { BadgeCheck, Briefcase, Clock, MapPin, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Briefcase,
+  CalendarClock,
+  Clock,
+  Eye,
+  MapPin,
+  Wallet,
+} from "lucide-react";
 import SaveJobButton from "@/components/jobs/SaveJobButton";
 import type { JobSummary } from "@/lib/api/types";
 import { toNumber } from "@/lib/money";
@@ -31,6 +40,18 @@ function relative(iso: string | null): string | null {
   const months = Math.floor(days / 30);
 
   return months === 1 ? "1 month ago" : `${months} months ago`;
+}
+
+/** Skill chips shown before the rest are folded into a "+N more" count. */
+const MAX_SKILLS = 4;
+
+/** "12 Mar 2027" — short enough to sit on the card's footer row. */
+function deadline(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /** Normalises the free-text salary period field ("year" and "yearly" both
@@ -94,6 +115,14 @@ export default function JobCard({ job }: { job: JobSummary }) {
   const experience = experienceLabel(job);
   const posted = relative(job.published_at);
   const thumbnail = jobThumbnail(job.category?.slug ?? null, job.slug);
+
+  /*
+   * Defaulted rather than trusted: these fields are new, and a cached
+   * response from before they existed still satisfies the type while
+   * omitting them at runtime. Reading .length off that undefined took the
+   * whole detail page down with a 500.
+   */
+  const skills = job.skills ?? [];
 
   return (
     <article
@@ -200,6 +229,16 @@ export default function JobCard({ job }: { job: JobSummary }) {
           </div>
         )}
 
+        {/* The opening of the description, so a card says what the job
+            actually is rather than only its title and salary. Already cut
+            to ~200 characters by the API; clamped to two lines as well, so
+            one long unbroken sentence cannot stretch the card. */}
+        {job.excerpt && (
+          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">
+            {job.excerpt}
+          </p>
+        )}
+
         {/*
           The media, below the text — the shape a feed post takes. Wide and
           short so it illustrates the card without becoming it; the previous
@@ -220,49 +259,108 @@ export default function JobCard({ job }: { job: JobSummary }) {
           />
         </Link>
 
-        {/* The facts a candidate scans for, as a strip under the media. */}
-        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
-          {job.employment_type && (
-            <div className="flex items-center gap-1.5">
-              <Briefcase className="h-4 w-4 shrink-0" />
-              {humanise(job.employment_type)}
-            </div>
-          )}
-          {experience && (
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 shrink-0" />
-              {experience}
-            </div>
-          )}
+        {/*
+          The facts a candidate scans for. On a tinted strip rather than
+          loose text: salary is the single most compared number on the
+          board, and as plain grey it sat at the same weight as the tags
+          below it.
+        */}
+        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm">
           {salary ? (
-            <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-              <Wallet className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-1.5 font-bold text-slate-900">
+              <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
               {salary}
             </div>
           ) : (
-            <span className="text-slate-400">Salary undisclosed</span>
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <Wallet className="h-4 w-4 shrink-0" />
+              Salary undisclosed
+            </div>
+          )}
+
+          {job.employment_type && (
+            <div className="flex items-center gap-1.5 text-slate-600">
+              <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
+              {humanise(job.employment_type)}
+            </div>
+          )}
+
+          {experience && (
+            <div className="flex items-center gap-1.5 text-slate-600">
+              <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+              {experience}
+            </div>
           )}
         </dl>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-          <div className="flex min-w-0 flex-wrap gap-1.5">
-            {[job.category, job.industry].filter(Boolean).map((ref) => (
-              <span
-                key={ref!.slug}
-                className="rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
+        {/*
+          Skills, then category and industry — all of them filter the board
+          when clicked, which the previous plain <span> tags only looked
+          like they would.
+
+          Capped at four: some jobs carry a dozen skills, and an uncapped
+          row turns the card into a tag cloud and breaks the even rhythm of
+          the list. The overflow count keeps the rest honest.
+        */}
+        {(skills.length > 0 || job.category || job.industry) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {skills.slice(0, MAX_SKILLS).map((skill) => (
+              <Link
+                key={skill.slug}
+                href={`/jobs?skill=${skill.slug}`}
+                className="relative z-10 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-700"
               >
-                {ref!.name}
-              </span>
+                {skill.name}
+              </Link>
             ))}
+
+            {skills.length > MAX_SKILLS && (
+              <span className="px-1 text-xs font-medium text-slate-400">
+                +{skills.length - MAX_SKILLS} more
+              </span>
+            )}
+
+            {job.category && (
+              <Link
+                href={`/jobs?category=${job.category.slug}`}
+                className="relative z-10 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              >
+                {job.category.name}
+              </Link>
+            )}
+            {job.industry && (
+              <Link
+                href={`/jobs?industry=${job.industry.slug}`}
+                className="relative z-10 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200"
+              >
+                {job.industry.name}
+              </Link>
+            )}
           </div>
+        )}
+
+        <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-3.5">
+          {job.deadline_at ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+              <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Apply by {deadline(job.deadline_at)}</span>
+            </span>
+          ) : (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+              <Eye className="h-3.5 w-3.5 shrink-0" />
+              {job.views_count.toLocaleString()} views
+            </span>
+          )}
 
           {/* Always visible, not hover-only, so touch devices get the same
-              affordance as desktop. */}
+              affordance as desktop. The arrow shifts on hover to signal it
+              goes somewhere rather than submitting something. */}
           <Link
             href={`/jobs/${job.slug}`}
-            className="relative z-10 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+            className="relative z-10 flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
           >
             View job
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
       </div>

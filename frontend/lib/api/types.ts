@@ -173,6 +173,10 @@ export interface JobSummary {
   id: number;
   title: string;
   slug: string;
+  /** Plain-text opening of the description, already cut to ~200 chars by
+   *  the API so a 15-job page does not ship fifteen full descriptions. */
+  excerpt: string | null;
+  skills: NamedRef[];
   employment_type: string | null;
   is_remote: boolean;
   is_featured: boolean;

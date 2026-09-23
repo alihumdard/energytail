@@ -10,6 +10,7 @@ use App\Models\JobCategory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * Job search and detail for the public site.
@@ -34,6 +35,9 @@ class PublicJobController extends Controller
                 'industry:id,name,slug',
                 'country:id,name,slug,code,flag_emoji',
                 'city:id,name,slug',
+                // For the card's skill chips. Eager-loaded so a 15-job page
+                // is one extra query rather than fifteen.
+                'skills:id,name,slug',
             ]);
 
         $this->applyFilters($query, $request);
@@ -131,6 +135,9 @@ class PublicJobController extends Controller
                 'company:id,name,slug,logo_path,is_verified',
                 'country:id,name,code,flag_emoji',
                 'city:id,name',
+                // The related strip renders the same card as the board, so
+                // it needs the same chips.
+                'skills:id,name,slug',
             ])
             // Same category first, then anything else that matched.
             ->orderByRaw('case when job_category_id = ? then 0 else 1 end', [$job->job_category_id])
@@ -285,8 +292,36 @@ class PublicJobController extends Controller
     }
 
     /**
+     * A plain-text opening of a job description, for the card.
+     *
+     * Tags are stripped and whitespace collapsed before measuring, so the
+     * limit counts characters a reader sees rather than markup — a
+     * description that opens with a <p> would otherwise spend its budget on
+     * the tag. Cut on a word boundary: a preview ending mid-word reads as a
+     * bug rather than a trim.
+     */
+    private function excerpt(?string $description, int $limit = 200): ?string
+    {
+        if ($description === null) {
+            return null;
+        }
+
+        $text = trim((string) preg_replace('/\s+/u', ' ', strip_tags($description)));
+
+        if ($text === '') {
+            return null;
+        }
+
+        return Str::limit($text, $limit, '…');
+    }
+
+    /**
      * The fields a job card needs. Deliberately smaller than the detail
      * payload: a 15-job page should not ship fifteen full descriptions.
+     *
+     * The card shows a preview of the description, so an excerpt is cut
+     * here rather than sending the whole thing for the browser to trim —
+     * that would ship the very payload this method exists to avoid.
      *
      * @return array<string, mixed>
      */
@@ -296,6 +331,10 @@ class PublicJobController extends Controller
             'id' => $job->id,
             'title' => $job->title,
             'slug' => $job->slug,
+            'excerpt' => $this->excerpt($job->description),
+            'skills' => $job->relationLoaded('skills')
+                ? $job->skills->map(fn ($s) => ['name' => $s->name, 'slug' => $s->slug])->all()
+                : [],
             'employment_type' => $job->employment_type,
             'is_remote' => $job->is_remote,
             'is_featured' => $job->is_featured,
