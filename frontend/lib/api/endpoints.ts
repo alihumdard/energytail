@@ -61,13 +61,38 @@ export interface RegisterPayload {
   /** Required when role is "employer" — the company jobs get posted under. */
   company_name?: string;
   company_website?: string;
+  /** Optional employer logo. Its presence switches the request to multipart. */
+  company_logo?: File | null;
   /** Present only while CAPTCHA is enabled on the server. */
   captcha_token?: string;
 }
 
 export const auth = {
-  register: (payload: RegisterPayload) =>
-    api.post<ApiEnvelope<User>>("/auth/register", payload),
+  /*
+   * Multipart only when a logo is attached: a File cannot go through JSON,
+   * but FormData stringifies everything, so sending every registration that
+   * way would turn `false` into the non-empty string "false".
+   */
+  register: (payload: RegisterPayload) => {
+    const { company_logo: logo, ...rest } = payload;
+
+    if (!logo) {
+      return api.post<ApiEnvelope<User>>("/auth/register", rest);
+    }
+
+    const data = new FormData();
+
+    for (const [key, value] of Object.entries(rest)) {
+      if (value === undefined || value === null) continue;
+      // "1"/"0" for booleans: "false" is a non-empty string, which
+      // Laravel's boolean rule reads as true.
+      data.append(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value));
+    }
+
+    data.append("company_logo", logo);
+
+    return api.post<ApiEnvelope<User>>("/auth/register", data);
+  },
 
   login: (
     email: string,
@@ -530,11 +555,29 @@ export const seeker = {
 export const employerCompany = {
   get: () => api.get<{ data: EmployerCompany | null }>("/employer/company"),
 
-  create: (payload: Record<string, unknown>) =>
+  create: (payload: Record<string, unknown> | FormData) =>
     api.post<ApiEnvelope<EmployerCompany>>("/employer/company", payload),
 
-  update: (id: number, payload: Record<string, unknown>) =>
-    api.put<ApiEnvelope<EmployerCompany>>(`/employer/company/${id}`, payload),
+  /*
+   * FormData goes out as POST with _method=PUT: PHP populates $_FILES only
+   * on a POST, so a real PUT carrying the logo arrives with the file missing
+   * and every other field empty.
+   */
+  update: (id: number, payload: Record<string, unknown> | FormData) => {
+    if (payload instanceof FormData) {
+      payload.append("_method", "PUT");
+
+      return api.post<ApiEnvelope<EmployerCompany>>(
+        `/employer/company/${id}`,
+        payload,
+      );
+    }
+
+    return api.put<ApiEnvelope<EmployerCompany>>(
+      `/employer/company/${id}`,
+      payload,
+    );
+  },
 };
 
 export const seekerProfile = {

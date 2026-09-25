@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
+import { resolveUpload } from "@/lib/thumbnails";
 import { DarkFooter } from "@/components/Shared";
 import Pagination from "@/components/ui/Pagination";
 import { fetchPublic } from "@/lib/api/server";
@@ -277,8 +278,19 @@ export default async function CompaniesPage({
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-100 text-lg font-bold text-slate-500 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600">
-                      {c.name.charAt(0)}
+                    {/* The logo when the company has uploaded one; the
+                        initial only as a fallback. */}
+                    <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-lg font-bold text-slate-500 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600">
+                      {c.logo_path ? (
+                        <img
+                          src={resolveUpload(c.logo_path)}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-contain p-1"
+                        />
+                      ) : (
+                        c.name.charAt(0)
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       {/* Wraps rather than truncating — "Nitzsche, Koch and

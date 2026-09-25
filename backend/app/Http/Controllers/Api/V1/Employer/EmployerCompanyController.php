@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -55,7 +56,7 @@ class EmployerCompanyController extends Controller
             ]);
         }
 
-        $validated = $this->validated($request, creating: true);
+        $validated = $this->withLogo($request, $this->validated($request, creating: true));
 
         $company = Company::query()->create($validated + [
             'owner_id' => $user?->getKey(),
@@ -85,7 +86,9 @@ class EmployerCompanyController extends Controller
     {
         $this->authorize('update', $company);
 
-        $company->update($this->validated($request, creating: false));
+        $company->update(
+            $this->withLogo($request, $this->validated($request, creating: false), $company),
+        );
 
         $company->load([
             'industry:id,name,slug',
@@ -114,6 +117,13 @@ class EmployerCompanyController extends Controller
 
         return $request->validate([
             'name' => [$required, 'string', 'max:180'],
+            /*
+             * 4MB, matching the job featured image. The file itself is not a
+             * column — withLogo() turns it into logo_path — but it has to be
+             * validated here or an employer could upload anything.
+             */
+            'logo' => ['sometimes', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
+            'remove_logo' => ['sometimes', 'boolean'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'website' => ['sometimes', 'nullable', 'url', 'max:255'],
             'email' => ['sometimes', 'nullable', 'email:rfc', 'max:255'],
@@ -129,6 +139,41 @@ class EmployerCompanyController extends Controller
         ], [
             'name.required' => 'Your company needs a name before you can post jobs.',
         ]);
+    }
+
+    /**
+     * Turns an uploaded logo into the column the model actually stores.
+     *
+     * `logo` and `remove_logo` are instructions, not fields: they say what to
+     * do with a file, and passing them to update() would try to write columns
+     * that do not exist. The previous file is deleted only once the new one
+     * is stored, so a failed upload cannot leave the company with no logo.
+     */
+    private function withLogo(Request $request, array $data, ?Company $company = null): array
+    {
+        unset($data['logo'], $data['remove_logo']);
+
+        $previous = $company?->logo_path;
+
+        if ($request->hasFile('logo')) {
+            $data['logo_path'] = $request->file('logo')->store('companies', 'public');
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+
+            return $data;
+        }
+
+        if ($request->boolean('remove_logo')) {
+            $data['logo_path'] = null;
+
+            if ($previous !== null) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
+        return $data;
     }
 
     /** A slug that stays unique without a lookup loop. */

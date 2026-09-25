@@ -2,15 +2,17 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Building,
   ClipboardList,
   Eye,
   EyeOff,
   Globe,
+  ImageIcon,
   Lock,
   Mail,
+  Upload,
   User,
   UserPlus,
 } from "lucide-react";
@@ -37,6 +39,21 @@ type AccountType = (typeof ACCOUNT_TYPES)[number]["value"];
 export default function RegisterForm() {
   const { register } = useAuth();
   const router = useRouter();
+  const params = useSearchParams();
+
+  /*
+   * Preset from the URL, so "Register as Employer" lands on the employer
+   * form rather than the job-seeker default the visitor then has to
+   * correct. Validated against the list rather than trusted: the value
+   * comes from the query string, and an unknown role would put the form
+   * into a state the API will not accept.
+   */
+  const requested = params.get("role");
+  const initialRole: AccountType = ACCOUNT_TYPES.some(
+    (t) => t.value === requested,
+  )
+    ? (requested as AccountType)
+    : "job_seeker";
 
   const [form, setForm] = useState({
     first_name: "",
@@ -48,8 +65,30 @@ export default function RegisterForm() {
     company_name: "",
     company_website: "",
   });
-  const [role, setRole] = useState<AccountType>("job_seeker");
+  const [role, setRole] = useState<AccountType>(initialRole);
   const [terms, setTerms] = useState(false);
+
+  /*
+   * Optional, employers only. Kept out of `form` because a File cannot be
+   * serialised with the rest of it, and its presence is what switches the
+   * request to multipart.
+   */
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(logoFile);
+    setLogoUrl(url);
+
+    // Revoked on cleanup: an object URL pins the file in memory until it
+    // is released, and picking several in a row would leak every one.
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -116,7 +155,9 @@ export default function RegisterForm() {
         terms_accepted: terms,
         // Sent only for employers: the API rejects them as unexpected input
         // for the other two roles, where they mean nothing.
-        ...(isEmployer ? { company_name, company_website } : {}),
+        ...(isEmployer
+          ? { company_name, company_website, company_logo: logoFile }
+          : {}),
       });
 
       // Registration signs the user in, so the next step is verifying their
@@ -353,6 +394,63 @@ export default function RegisterForm() {
             onChange={update("company_website")}
             error={error?.fieldError("company_website")}
           />
+
+          {/* Optional: an employer who skips it gets a company that shows
+              its initials, and can add the logo from the company profile
+              at any time. */}
+          <div>
+            <span className="text-sm font-medium text-slate-700">
+              Company Logo{" "}
+              <span className="font-normal text-slate-400">(optional)</span>
+            </span>
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-3">
+              <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="h-full w-full object-contain p-1.5"
+                  />
+                ) : (
+                  <ImageIcon className="h-5 w-5 text-slate-300" />
+                )}
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-600">
+                  <Upload className="h-4 w-4" />
+                  {logoFile ? "Replace" : "Upload"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+
+                {logoFile && (
+                  <button
+                    type="button"
+                    onClick={() => setLogoFile(null)}
+                    className="ml-2 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                )}
+
+                <p className="mt-1.5 text-xs text-slate-500">
+                  JPG, PNG or WebP, up to 4MB.
+                </p>
+
+                {error?.fieldError("company_logo") && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {error.fieldError("company_logo")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

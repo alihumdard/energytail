@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\Company;
+use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Registered;
@@ -95,6 +96,10 @@ class AuthService
             'slug' => $slug,
             'email' => $user->email,
             'website' => $data['company_website'] ?? null,
+            // Optional at sign-up; the company profile can set it later.
+            'logo_path' => ($data['company_logo'] ?? null) instanceof UploadedFile
+                ? $data['company_logo']->store('companies', 'public')
+                : null,
             'status' => Company::STATUS_PENDING,
         ]);
     }

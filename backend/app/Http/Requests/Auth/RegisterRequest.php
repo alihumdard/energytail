@@ -48,6 +48,12 @@ class RegisterRequest extends FormRequest
              */
             'company_name' => ['required_if:role,employer', 'nullable', 'string', 'max:180'],
             'company_website' => ['nullable', 'url', 'max:255'],
+            /*
+             * Optional, and only meaningful for an employer. An employer who
+             * skips it gets a company that falls back to its initials, and
+             * can add the logo from the company profile later.
+             */
+            'company_logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
         ];
     }
 
@@ -61,6 +67,8 @@ class RegisterRequest extends FormRequest
             'terms_accepted.accepted' => 'You must accept the Terms of Use and Privacy Policy.',
             'company_name.required_if' => 'Enter your company name.',
             'company_website.url' => 'Enter a full web address, including https://',
+            'company_logo.image' => 'The logo must be an image file.',
+            'company_logo.max' => 'The logo may not be larger than 4MB.',
         ];
     }
 

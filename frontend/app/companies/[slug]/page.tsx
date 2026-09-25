@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
+import { resolveUpload } from "@/lib/thumbnails";
 import { DarkFooter } from "@/components/Shared";
 import { fetchPublic, ServerFetchError } from "@/lib/api/server";
 import JsonLd from "@/lib/seo/JsonLd";
@@ -97,8 +98,18 @@ export default async function CompanyPage({ params }: Props) {
             </Link>
 
             <div className="flex flex-wrap items-start gap-5">
-              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-slate-100 text-3xl font-bold text-slate-400">
-                {company.name.charAt(0)}
+              {/* The uploaded logo when there is one; the initial is the
+                  fallback, not the only option it used to be. */}
+              <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-3xl font-bold text-slate-400">
+                {company.logo_path ? (
+                  <img
+                    src={resolveUpload(company.logo_path)}
+                    alt=""
+                    className="h-full w-full object-contain p-1.5"
+                  />
+                ) : (
+                  company.name.charAt(0)
+                )}
               </span>
 
               <div className="min-w-0 flex-1">

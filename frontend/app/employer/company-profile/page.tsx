@@ -8,14 +8,18 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  ImageIcon,
   Loader2,
   Save,
+  Upload,
 } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { employerCompany, publicApi } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { EmployerCompany, TaxonomyItem } from "@/lib/api/types";
 import RoleShell from "@/components/RoleShell";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import { resolveUpload } from "@/lib/thumbnails";
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"];
 
@@ -44,6 +48,34 @@ export default function CompanyProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [saved, setSaved] = useState(false);
+
+  /*
+   * Kept out of `form`: a File cannot be serialised with the rest of the
+   * payload, and its presence is what decides whether the request goes as
+   * JSON or as multipart.
+   */
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+
+  /*
+   * A local URL for the chosen file, so the preview shows the new pick
+   * rather than the logo it is about to replace. Revoked on cleanup — an
+   * object URL holds the file in memory until released, and picking
+   * several in a row would leak every one of them.
+   */
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!logoFile) {
+      setObjectUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(logoFile);
+    setObjectUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
 
   function set<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -160,12 +192,42 @@ export default function CompanyProfilePage() {
       payload.city_id = form.city_id ? Number(form.city_id) : null;
       payload.founded_year = form.founded_year ? Number(form.founded_year) : null;
 
+      /*
+       * Multipart only when there is a file to send or one to clear —
+       * otherwise the plain JSON body keeps nulls as nulls. FormData
+       * stringifies everything, so null would arrive as "null".
+       */
+      const useForm = logoFile !== null || removeLogo;
+      let body: Record<string, unknown> | FormData = payload;
+
+      if (useForm) {
+        const data = new FormData();
+
+        for (const [key, value] of Object.entries(payload)) {
+          // Skipped rather than sent as "null": a FormData value is always
+          // a string, and "null" is not what the API reads as empty.
+          if (value !== null && value !== undefined) {
+            data.append(key, String(value));
+          }
+        }
+
+        if (logoFile) data.append("logo", logoFile);
+        // "1"/"0", never a JS boolean: false would arrive as the non-empty
+        // string "false", which Laravel's boolean rule reads as true.
+        if (removeLogo && !logoFile) data.append("remove_logo", "1");
+
+        body = data;
+      }
+
       const { data } = company
-        ? await employerCompany.update(company.id, payload)
-        : await employerCompany.create(payload);
+        ? await employerCompany.update(company.id, body)
+        : await employerCompany.create(body);
 
       setCompany(data);
       setSaved(true);
+      // The saved profile is now the source of truth for the preview.
+      setLogoFile(null);
+      setRemoveLogo(false);
     } catch (err) {
       setError(err instanceof ApiError ? err : new ApiError(0, "Could not reach the server."));
     } finally {
@@ -174,6 +236,13 @@ export default function CompanyProfilePage() {
   }
 
   const fieldError = (name: string) => error?.fieldError(name);
+
+  /** The newly picked file, or the saved logo when nothing is pending. */
+  const logoPreview =
+    objectUrl ??
+    (!removeLogo && company?.logo_path
+      ? resolveUpload(company.logo_path)
+      : null);
   const SHOWN = ["name", "website", "email", "phone", "founded_year", "description"];
   const generalError =
     error && !SHOWN.some((f) => fieldError(f)) ? error.detail : null;
@@ -284,6 +353,84 @@ export default function CompanyProfilePage() {
                   )}
                 </label>
 
+                {/*
+                  The logo, above the description: it is the first thing a
+                  candidate sees on a company card, and a profile without
+                  one falls back to the company's initials.
+                */}
+                <div>
+                  <span className="text-sm font-medium text-slate-700">
+                    Company logo
+                  </span>
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-4">
+                    {/* Square, because that is the shape every card and
+                        job listing renders it in. */}
+                    <span className="relative grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt=""
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <span className="flex flex-col items-center gap-1 text-slate-400">
+                          <ImageIcon className="h-5 w-5" />
+                          <span className="text-[11px]">No logo</span>
+                        </span>
+                      )}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-600">
+                        <Upload className="h-4 w-4" />
+                        {logoPreview ? "Replace logo" : "Upload logo"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null;
+
+                            setLogoFile(file);
+                            // Picking a file overrides a pending removal:
+                            // the two together would delete what was just
+                            // uploaded.
+                            if (file) setRemoveLogo(false);
+                          }}
+                        />
+                      </label>
+
+                      {logoPreview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null);
+                            // Only a saved logo needs removing on the
+                            // server; an unsaved pick is just discarded.
+                            setRemoveLogo(Boolean(company?.logo_path));
+                          }}
+                          className="ml-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      )}
+
+                      <p className="mt-2 text-xs text-slate-400">
+                        Optional. JPG, PNG or WebP, up to 4MB. A square
+                        image works best. Without one, your company shows
+                        its initials.
+                      </p>
+
+                      {fieldError("logo") && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {fieldError("logo")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">About</span>
                   <textarea
@@ -296,37 +443,46 @@ export default function CompanyProfilePage() {
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block">
+                  {/*
+                    Divs, not labels: a <label> forwards a click anywhere
+                    inside it to its control, which reopens a custom
+                    dropdown the instant it closes.
+                  */}
+                  <div>
                     <span className="text-sm font-medium text-slate-700">Industry</span>
-                    <select
-                      value={form.industry_id}
-                      onChange={(e) => set("industry_id", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none"
-                    >
-                      <option value="">Choose…</option>
-                      {industries.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        options={industries.map((i) => ({
+                          value: i.id,
+                          label: i.name,
+                        }))}
+                        value={form.industry_id || null}
+                        onChange={(next) =>
+                          set("industry_id", next === null ? "" : String(next))
+                        }
+                        placeholder="Choose…"
+                        clearable
+                      />
+                    </div>
+                  </div>
 
-                  <label className="block">
+                  <div>
                     <span className="text-sm font-medium text-slate-700">Company size</span>
-                    <select
-                      value={form.company_size}
-                      onChange={(e) => set("company_size", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none"
-                    >
-                      <option value="">Choose…</option>
-                      {SIZES.map((s) => (
-                        <option key={s} value={s}>
-                          {s} employees
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        options={SIZES.map((size) => ({
+                          value: size,
+                          label: `${size} employees`,
+                        }))}
+                        value={form.company_size || null}
+                        onChange={(next) =>
+                          set("company_size", next === null ? "" : String(next))
+                        }
+                        placeholder="Choose…"
+                        clearable
+                      />
+                    </div>
+                  </div>
 
                   <label className="block">
                     <span className="text-sm font-medium text-slate-700">Founded</span>
@@ -365,43 +521,48 @@ export default function CompanyProfilePage() {
                 <h2 className="font-semibold text-slate-900">Where you are</h2>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block">
+                  <div>
                     <span className="text-sm font-medium text-slate-700">Country</span>
-                    <select
-                      value={form.country_id}
-                      onChange={(e) => {
-                        set("country_id", e.target.value);
-                        set("city_id", "");
-                      }}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none"
-                    >
-                      <option value="">Choose…</option>
-                      {countries.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        options={countries.map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                        }))}
+                        value={form.country_id || null}
+                        onChange={(next) => {
+                          set("country_id", next === null ? "" : String(next));
+                          // The old city belongs to the old country.
+                          set("city_id", "");
+                        }}
+                        placeholder="Search countries…"
+                        clearable
+                      />
+                    </div>
+                  </div>
 
-                  <label className="block">
+                  <div>
                     <span className="text-sm font-medium text-slate-700">City</span>
-                    <select
-                      value={form.city_id}
-                      onChange={(e) => set("city_id", e.target.value)}
-                      disabled={!form.country_id}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none disabled:bg-slate-50"
-                    >
-                      <option value="">
-                        {form.country_id ? "Choose…" : "Pick a country first"}
-                      </option>
-                      {cities.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        options={cities.map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                        }))}
+                        value={form.city_id || null}
+                        onChange={(next) =>
+                          set("city_id", next === null ? "" : String(next))
+                        }
+                        disabled={!form.country_id}
+                        placeholder={
+                          form.country_id
+                            ? "Search cities…"
+                            : "Pick a country first"
+                        }
+                        clearable
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <label className="block">
