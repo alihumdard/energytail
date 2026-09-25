@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Menu,
-  Bell,
   ChevronDown,
   Search,
   Gem,
@@ -49,7 +48,6 @@ export default function DashboardShell({
   sections,
   searchPlaceholder,
   searchTypeLabel,
-  notifCount,
   planTitle,
   planBody,
   children,
@@ -57,7 +55,6 @@ export default function DashboardShell({
   sections: NavSection[];
   searchPlaceholder: string;
   searchTypeLabel: string;
-  notifCount: number;
   planTitle: string;
   planBody: string;
   children: React.ReactNode;
@@ -106,12 +103,10 @@ export default function DashboardShell({
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
+        {/* The same component the public headers use, so the mark cannot
+            drift between the signed-in and signed-out sides of the site. */}
         <Link href="/" className="flex shrink-0 items-center">
-          <img
-            src="/logo-trimmed.png"
-            alt="Energy Tail"
-            className="h-9 w-auto object-contain"
-          />
+          <Logo size="compact" />
         </Link>
 
         {/*
@@ -148,21 +143,10 @@ export default function DashboardShell({
         </form>
 
         <div className="ml-auto flex shrink-0 items-center gap-3">
-          <button
-            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-blue-600"
-            aria-label={
-              notifCount > 0
-                ? `Notifications, ${notifCount} unread`
-                : "Notifications"
-            }
-          >
-            <Bell size={20} />
-            {notifCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-blue-600 text-[9px] font-bold text-white">
-                {notifCount}
-              </span>
-            )}
-          </button>
+          {/*
+            No bell: there is no notification feed behind it, so it was a
+            button that never did anything and never had a count to show.
+          */}
 
           <div className="border-l border-slate-200 pl-3">
             <UserMenu align="right" />

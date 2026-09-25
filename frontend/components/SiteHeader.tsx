@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import HeaderAuthControls from "@/components/HeaderAuthControls";
 import UtilityBar from "@/components/UtilityBar";
+import Logo from "@/components/Logo";
 import { publicNavItems as navLinks } from "@/lib/nav/useHeaderNav";
 
 /**
@@ -56,11 +57,7 @@ export default function SiteHeader({ active }: { active?: string }) {
       >
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-6">
           <Link href="/" className="flex shrink-0 items-center">
-            <img
-              src="/logo-trimmed.png"
-              alt="Energy Tail"
-              className="h-14 w-auto object-contain"
-            />
+            <Logo />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8 text-[14px] font-semibold text-slate-600">

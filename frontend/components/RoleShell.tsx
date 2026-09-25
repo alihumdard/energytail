@@ -32,8 +32,6 @@ export default function RoleShell({
       sections={sectionsFor(role, pathname)}
       searchPlaceholder={copy.searchPlaceholder}
       searchTypeLabel={copy.searchTypeLabel}
-      // No notification feed yet; the bell renders without a count.
-      notifCount={0}
       planTitle={copy.planTitle}
       planBody={copy.planBody}
     >

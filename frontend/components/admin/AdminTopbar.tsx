@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Menu, Bell, MessageSquare, Moon } from "lucide-react";
+import { Search, Menu, Moon } from "lucide-react";
 import { setOpen } from "./drawer-store";
 import UserMenu from "./UserMenu";
 
@@ -59,18 +59,13 @@ export default function AdminTopbar({
           </button>
         )}
 
-        <button className={`relative p-2 rounded-lg ${dark ? "text-white hover:bg-white/10" : "text-slate-500 hover:bg-slate-50"}`}>
-          <Bell className="w-[18px] h-[18px]" />
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-            12
-          </span>
-        </button>
-
-        {!dark && (
-          <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-50">
-            <MessageSquare className="w-[18px] h-[18px]" />
-          </button>
-        )}
+        {/*
+          The bell and the message button were here with a hardcoded "12"
+          unread and no handler on either. There is no notification or
+          messaging feature behind them, so the badge told every admin they
+          had twelve things waiting and clicking it did nothing. Removed
+          until something actually feeds them.
+        */}
 
         <div className={`h-8 w-px ${dark ? "bg-white/10" : "bg-slate-100"}`} />
 
