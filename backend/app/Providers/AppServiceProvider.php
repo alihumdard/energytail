@@ -3,10 +3,13 @@
 namespace App\Providers;
 
 use App\Listeners\LogAuthenticationEvents;
+use App\Models\Article;
 use App\Models\ArticleCategory;
 use App\Models\City;
+use App\Models\Company;
 use App\Models\Country;
 use App\Models\Industry;
+use App\Models\Job;
 use App\Models\JobCategory;
 use App\Models\Skill;
 use App\Models\Tag;
@@ -52,14 +55,24 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Taxonomy edits invalidate the public caches, so an admin change shows
-     * on the frontend immediately rather than after the TTL expires.
+     * Taxonomy and content edits invalidate the public caches, so an admin
+     * change shows on the frontend immediately rather than after the TTL
+     * expires.
      */
     private function registerObservers(): void
     {
         foreach ([
             Country::class, City::class, Industry::class,
             JobCategory::class, ArticleCategory::class, Skill::class, Tag::class,
+
+            /*
+             * The homepage caches the articles, jobs and companies it shows,
+             * and only taxonomies used to clear it — so deleting or
+             * unpublishing an article left it on the front page for the rest
+             * of the five-minute TTL, which reads as the delete having
+             * failed.
+             */
+            Article::class, Job::class, Company::class,
         ] as $model) {
             $model::observe(TaxonomyCacheObserver::class);
         }
