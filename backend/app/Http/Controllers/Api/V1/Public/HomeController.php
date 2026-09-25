@@ -214,6 +214,9 @@ class HomeController extends Controller
                 'title' => $article->title,
                 'slug' => $article->slug,
                 'excerpt' => $article->excerpt,
+                // The homepage fell back to a category photo without it, so
+                // an author's uploaded image never reached the front page.
+                'featured_image_path' => $article->featured_image_path,
                 'reading_minutes' => $article->reading_minutes,
                 'published_at' => $article->published_at?->toIso8601String(),
                 'author' => $article->author ? ['name' => $article->author->full_name] : null,

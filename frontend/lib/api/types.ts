@@ -727,6 +727,7 @@ export interface HomePayload {
     title: string;
     slug: string;
     excerpt: string | null;
+    featured_image_path: string | null;
     reading_minutes: number | null;
     published_at: string | null;
     author: { name: string } | null;

@@ -24,7 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fetchPublic } from "@/lib/api/server";
-import { resolveUpload } from "@/lib/thumbnails";
+import { articleThumbnail, resolveUpload } from "@/lib/thumbnails";
 import JsonLd from "@/lib/seo/JsonLd";
 import { websiteSchema } from "@/lib/seo/schemas";
 import type { HomePayload } from "@/lib/api/types";
@@ -58,20 +58,6 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
  *  has no featured image for that article (it never does today). Fixed
  *  Unsplash photo ids so the same category always shows the same image
  *  rather than a random one on every request. */
-const ARTICLE_CATEGORY_IMAGES: Record<string, string> = {
-  "oil-gas-articles": "https://images.unsplash.com/photo-1505027082971-a5e04d1a1a1e?w=600&h=400&fit=crop&q=70",
-  "renewable-energy-articles": "https://images.unsplash.com/photo-1497440001374-f26997328c1b?w=600&h=400&fit=crop&q=70",
-  "lng-articles": "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=600&h=400&fit=crop&q=70",
-  "hse-articles": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&h=400&fit=crop&q=70",
-  "solar-energy-articles": "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&h=400&fit=crop&q=70",
-  "power-generation-articles": "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&h=400&fit=crop&q=70",
-  "technology-articles": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop&q=70",
-  "careers-advice-articles": "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=600&h=400&fit=crop&q=70",
-  "market-insights-articles": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop&q=70",
-};
-const DEFAULT_ARTICLE_IMAGE =
-  "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&h=400&fit=crop&q=70";
-
 /** Stand-in logo photos for companies with no logo_path on file yet — a
  *  small fixed set, picked deterministically per company so the same one
  *  always gets the same photo instead of a plain letter tile. */
@@ -640,8 +626,18 @@ export default async function HomePage() {
                 >
                   <img
                     src={
-                      (a.category && ARTICLE_CATEGORY_IMAGES[a.category.slug]) ||
-                      DEFAULT_ARTICLE_IMAGE
+                      /*
+                       * The article's own image first. This picked from a
+                       * category map and never looked at
+                       * featured_image_path, so an author's upload was
+                       * stored, served and then ignored here while every
+                       * other page showed it.
+                       */
+                      articleThumbnail(
+                        a.featured_image_path ?? null,
+                        a.category?.slug ?? null,
+                        a.slug,
+                      )
                     }
                     alt=""
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
