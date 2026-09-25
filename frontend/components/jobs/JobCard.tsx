@@ -2,9 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
-  Briefcase,
-  CalendarClock,
-  Clock,
   Eye,
   MapPin,
   Wallet,
@@ -41,9 +38,6 @@ function relative(iso: string | null): string | null {
 
   return months === 1 ? "1 month ago" : `${months} months ago`;
 }
-
-/** Skill chips shown before the rest are folded into a "+N more" count. */
-const MAX_SKILLS = 4;
 
 /** "12 Mar 2027" — short enough to sit on the card's footer row. */
 function deadline(iso: string): string {
@@ -120,14 +114,6 @@ export default function JobCard({ job }: { job: JobSummary }) {
     job.featured_image_path,
   );
 
-  /*
-   * Defaulted rather than trusted: these fields are new, and a cached
-   * response from before they existed still satisfies the type while
-   * omitting them at runtime. Reading .length off that undefined took the
-   * whole detail page down with a 500.
-   */
-  const skills = job.skills ?? [];
-
   return (
     <article
       // flex column, full height: in a grid the cards are stretched to a
@@ -150,7 +136,36 @@ export default function JobCard({ job }: { job: JobSummary }) {
         aria-hidden="true"
       />
 
-      <div className="flex flex-1 flex-col p-4 sm:p-5">
+      {/*
+        Two halves side by side: a square photo, then everything else.
+        Stacked on a phone, where a half-width column leaves neither the
+        picture nor the text enough room to be read.
+      */}
+      <div className="flex flex-1 flex-col gap-4 p-4 sm:flex-row sm:gap-5 sm:p-5">
+        <Link
+          href={`/jobs/${job.slug}`}
+          // Capped, not a true half. A square that is genuinely half of a
+          // full-width row is around 440px tall, and the card's text does
+          // not fill that — the card grew to the photo's height and left a
+          // band of empty space above the footer. The cap keeps the photo
+          // roughly as tall as the text it sits beside.
+          //
+          // self-start is what keeps it square: as a flex child it is
+          // stretched to the text column's height by default, and that
+          // height beats aspect-square.
+          className="relative z-10 block aspect-square w-full shrink-0 self-start overflow-hidden rounded-xl bg-slate-100 sm:w-1/2 sm:max-w-[13rem]"
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        </Link>
+
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
         {/*
           A post header, the way a feed card opens: who posted, and when.
           The job title leads the body below it. Laid out this way rather
@@ -163,12 +178,17 @@ export default function JobCard({ job }: { job: JobSummary }) {
           </span>
 
           <div className="min-w-0 flex-1">
-            {/* Company and timestamp: the "posted by" line of a feed post. */}
-            <p className="flex flex-wrap items-center gap-x-1.5 text-sm">
+            {/* Company and timestamp: the "posted by" line of a feed post.
+
+                Truncated rather than wrapped: a long company name broke to
+                a second line and left the tick and the date stranded below
+                it, which read as two separate facts. */}
+            <p className="flex items-center gap-x-1.5 text-sm">
               {job.company ? (
                 <Link
                   href={`/companies/${job.company.slug}`}
-                  className="relative z-10 font-semibold text-slate-700 hover:text-blue-600"
+                  title={job.company.name}
+                  className="relative z-10 truncate font-semibold text-slate-700 hover:text-blue-600"
                 >
                   {job.company.name}
                 </Link>
@@ -181,16 +201,15 @@ export default function JobCard({ job }: { job: JobSummary }) {
                 <BadgeCheck className="h-4 w-4 shrink-0 text-blue-500" />
               )}
               {posted && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span className="text-xs text-slate-400">{posted}</span>
-                </>
+                <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
+                  · {posted}
+                </span>
               )}
             </p>
 
             {/* Wraps rather than truncating: a job title cut off mid-word is
                 the one thing on the card a reader cannot afford to lose. */}
-            <h2 className="mt-0.5 text-[17px] font-bold leading-snug text-slate-900">
+            <h2 className="mt-1 line-clamp-2 text-[17px] font-bold leading-snug text-slate-900">
               <Link
                 href={`/jobs/${job.slug}`}
                 className="relative z-10 hover:text-blue-600"
@@ -200,18 +219,44 @@ export default function JobCard({ job }: { job: JobSummary }) {
             </h2>
 
             {location && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+              <p className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500">
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{location}</span>
               </p>
             )}
           </div>
 
-          {/* Above the card-covering link so it stays independently
-              clickable, and sized to a full 44px tap target on mobile. */}
-          <span className="relative z-10 -m-2.5 shrink-0 p-2.5">
+          {/* Above the card-covering link so both stay independently
+              clickable. The action sits with the bookmark at the top
+              rather than on the card's base: it is the card's primary
+              affordance, and at the bottom it trailed a row of facts.
+
+              Hidden below sm, where the header has no room for it — the
+              whole card is a link there, and the bottom row keeps its own
+              copy for touch. */}
+          {/* Save first, then open: the bookmark is the lighter, reversible
+              action and the arrow is the one that leaves the card.
+
+              Two buttons, not one — save is a toggle that holds state and
+              "view" is navigation, so a single control could not report
+              which of the two it had done. As icons they cost the header
+              the width of the title's first word instead of a label. */}
+          <div className="relative z-10 flex shrink-0 items-center gap-0.5 rounded-xl border border-blue-200 bg-blue-50 p-0.5 sm:gap-1">
             <SaveJobButton jobId={job.id} />
-          </span>
+            <Link
+              href={`/jobs/${job.slug}`}
+              aria-label={`View ${job.title}`}
+              title="View job"
+              className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-white hover:shadow-sm sm:flex"
+            >
+              {/* An eye, not an arrow: a bare arrow beside a bookmark reads
+                  as "next", and the action here is to look at the job.
+                  Labelled as well, so the glyph is not carrying the whole
+                  meaning on its own. */}
+              <Eye className="h-[18px] w-[18px]" />
+              View
+            </Link>
+          </div>
         </div>
 
         {/* Status badges, on their own line so a long company name can never
@@ -244,145 +289,83 @@ export default function JobCard({ job }: { job: JobSummary }) {
           // Three lines in a narrow column, two on a full-width row: the
           // clamp is there to keep cards even, and two lines of a
           // three-across column is barely a sentence.
-          <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-500 lg:line-clamp-2">
+          <p className="my-2.5 line-clamp-3 text-sm leading-relaxed text-slate-500">
             {job.excerpt}
           </p>
         )}
 
         {/*
-          The media, below the text — the shape a feed post takes. Wide and
-          short so it illustrates the card without becoming it; the previous
-          version gave the photo a full tall column beside the title and it
-          read as a photo gallery with captions.
+          One row: the facts a candidate scans for, then the action. They
+          were a tinted strip and a bordered footer stacked on top of each
+          other, which cost two bands of vertical space to say very little.
+
+          Separated by dots rather than boxes — at this size the tint and
+          the rule were doing more work than the content needed.
+
+          No mt-auto: the photo is the taller column, and mt-auto handed
+          the whole difference to this row as one gap under the
+          description. The text block now sits together and the column is
+          centred against the photo, so the slack is split evenly above
+          and below it.
         */}
-        <Link
-          href={`/jobs/${job.slug}`}
-          // 16:9 in a narrow column, widening to 21:9 only where the card
-          // has the width to carry it — at three or four across, 21:9 cuts
-          // the photo to a letterbox sliver.
-          className="relative z-10 mt-3 block aspect-video overflow-hidden rounded-xl bg-slate-100 sm:aspect-[21/9]"
-          tabIndex={-1}
-          aria-hidden="true"
-        >
-          <img
-            src={thumbnail}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        </Link>
-
-        {/*
-          The facts a candidate scans for. On a tinted strip rather than
-          loose text: salary is the single most compared number on the
-          board, and as plain grey it sat at the same weight as the tags
-          below it.
-        */}
-        <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm">
-          {salary ? (
-            <div className="flex items-center gap-1.5 font-bold text-slate-900">
-              <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
-              {salary}
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <Wallet className="h-4 w-4 shrink-0" />
-              Salary undisclosed
-            </div>
-          )}
-
-          {job.employment_type && (
-            <div className="flex items-center gap-1.5 text-slate-600">
-              <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
-              {humanise(job.employment_type)}
-            </div>
-          )}
-
-          {experience && (
-            <div className="flex items-center gap-1.5 text-slate-600">
-              <Clock className="h-4 w-4 shrink-0 text-slate-400" />
-              {experience}
-            </div>
-          )}
-        </dl>
-
-        {/*
-          Skills, then category and industry — all of them filter the board
-          when clicked, which the previous plain <span> tags only looked
-          like they would.
-
-          Capped at four: some jobs carry a dozen skills, and an uncapped
-          row turns the card into a tag cloud and breaks the even rhythm of
-          the list. The overflow count keeps the rest honest.
-        */}
-        {(skills.length > 0 || job.category || job.industry) && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {skills.slice(0, MAX_SKILLS).map((skill) => (
-              <Link
-                key={skill.slug}
-                href={`/jobs?skill=${skill.slug}`}
-                className="relative z-10 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-blue-300 hover:text-blue-700"
-              >
-                {skill.name}
-              </Link>
-            ))}
-
-            {skills.length > MAX_SKILLS && (
-              <span className="px-1 text-xs font-medium text-slate-400">
-                +{skills.length - MAX_SKILLS} more
-              </span>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-2.5">
+          <dl className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
+            {salary ? (
+              <div className="flex items-center gap-1.5 whitespace-nowrap font-bold text-slate-900">
+                <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
+                {salary}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <Wallet className="h-4 w-4 shrink-0" />
+                Salary undisclosed
+              </div>
             )}
 
-            {job.category && (
-              <Link
-                href={`/jobs?category=${job.category.slug}`}
-                className="relative z-10 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-              >
-                {job.category.name}
-              </Link>
+            {job.employment_type && (
+              <>
+                <span className="text-slate-300" aria-hidden>
+                  ·
+                </span>
+                <div className="whitespace-nowrap text-slate-600">
+                  {humanise(job.employment_type)}
+                </div>
+              </>
             )}
-            {job.industry && (
-              <Link
-                href={`/jobs?industry=${job.industry.slug}`}
-                className="relative z-10 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200"
-              >
-                {job.industry.name}
-              </Link>
-            )}
-          </div>
-        )}
 
-        {/* Wraps: in a three-across column the date and the button cannot
-            share a line, and without this the button was squeezed to a
-            sliver rather than dropping below. */}
-        {/* flex-1 lets the footer absorb a stretched card's spare height and
-            items-end holds its contents at the bottom, so the "View job"
-            buttons line up across a row instead of sitting wherever each
-            card's text happened to end. The margin still guarantees a gap
-            when there is no slack to absorb. */}
-        <div className="mt-3.5 flex flex-1 flex-wrap items-end justify-between gap-x-3 gap-y-2.5 border-t border-slate-100 pt-3.5">
-          {job.deadline_at ? (
-            <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
-              <CalendarClock className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">Apply by {deadline(job.deadline_at)}</span>
+            {experience && (
+              <>
+                <span className="text-slate-300" aria-hidden>
+                  ·
+                </span>
+                <div className="whitespace-nowrap text-slate-600">{experience}</div>
+              </>
+            )}
+
+            <span className="text-slate-300" aria-hidden>
+              ·
             </span>
-          ) : (
-            <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
-              <Eye className="h-3.5 w-3.5 shrink-0" />
-              {job.views_count.toLocaleString()} views
-            </span>
-          )}
+            {job.deadline_at ? (
+              <div className="whitespace-nowrap text-slate-400">
+                Apply by {deadline(job.deadline_at)}
+              </div>
+            ) : (
+              <div className="min-w-0 text-slate-400">
+                {job.views_count.toLocaleString()} views
+              </div>
+            )}
+          </dl>
 
-          {/* Always visible, not hover-only, so touch devices get the same
-              affordance as desktop. The arrow shifts on hover to signal it
-              goes somewhere rather than submitting something. */}
+          {/* The header's copy is hidden below sm; this one takes over
+              there, so a phone still gets an explicit tap target. */}
           <Link
             href={`/jobs/${job.slug}`}
-            className="relative z-10 flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+            className="relative z-10 flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 sm:hidden"
           >
             View job
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            <ArrowRight className="h-3.5 w-3.5" />
           </Link>
+        </div>
         </div>
       </div>
     </article>
