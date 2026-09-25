@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { Search, Building2, ClipboardList, ShieldCheck, Headphones, Briefcase } from "lucide-react";
 import Header from "@/components/Header";
 import { DarkFooter } from "@/components/Shared";
@@ -82,10 +83,13 @@ export default function LoginPage() {
           title="Are you a company looking to hire?"
           desc="Post jobs, search resumes and connect with top energy professionals."
           action={
-            <button className="flex items-center gap-2 bg-white border border-blue-200 text-blue-600 font-medium rounded-lg px-4 py-2.5 text-sm hover:bg-blue-100 shrink-0">
+            <Link
+              href="/register?role=employer"
+              className="flex items-center gap-2 bg-white border border-blue-200 text-blue-600 font-medium rounded-lg px-4 py-2.5 text-sm hover:bg-blue-100 shrink-0"
+            >
               <Building2 className="w-4 h-4" />
               Register as Employer
-            </button>
+            </Link>
           }
         />
       </main>

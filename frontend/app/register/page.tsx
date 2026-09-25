@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Briefcase, Building2, ClipboardList, Bell, ShieldCheck, BadgeCheck, TrendingUp, Lock as LockIcon } from "lucide-react";
 import Header from "@/components/Header";
 import { DarkFooter } from "@/components/Shared";
@@ -67,7 +68,12 @@ export default function RegisterPage() {
               </a>
             </p>
 
-            <RegisterForm />
+            {/* The form reads ?role= to preselect an account type, and
+                useSearchParams needs a boundary to suspend against during
+                prerender. */}
+            <Suspense fallback={null}>
+              <RegisterForm />
+            </Suspense>
           </div>
         </div>
 
