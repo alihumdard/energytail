@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fetchPublic } from "@/lib/api/server";
+import { resolveUpload } from "@/lib/thumbnails";
 import JsonLd from "@/lib/seo/JsonLd";
 import { websiteSchema } from "@/lib/seo/schemas";
 import type { HomePayload } from "@/lib/api/types";
@@ -417,7 +418,12 @@ export default async function HomePage() {
                     <div className="flex items-start gap-3">
                       <img
                         src={
-                          job.company?.logo_path ||
+                          // resolveUpload, not the raw column: logo_path is
+                          // stored relative ("companies/abc.jpg") and the
+                          // files are served from the API host, so passing it
+                          // straight to src asked this host for a path that
+                          // does not exist here.
+                          resolveUpload(job.company?.logo_path) ||
                           companyFallbackImage(job.company?.slug ?? job.slug)
                         }
                         alt=""
@@ -540,7 +546,10 @@ export default async function HomePage() {
                 className="group flex h-full flex-col items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/50 sm:flex-row sm:gap-3 sm:text-left"
               >
                 <img
-                  src={c.logo_path || companyFallbackImage(c.slug)}
+                  src={
+                    resolveUpload(c.logo_path) ||
+                    companyFallbackImage(c.slug)
+                  }
                   alt=""
                   className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200/60 sm:h-11 sm:w-11"
                 />

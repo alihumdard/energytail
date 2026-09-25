@@ -113,7 +113,17 @@ const ARTICLE_PHOTOS: Record<string, string> = {
  * Stored paths are relative to the API's public disk; an absolute URL is
  * already resolved and passes through untouched.
  */
-export function resolveUpload(path: string): string {
+export function resolveUpload(path: string): string;
+export function resolveUpload(path: string | null | undefined): string | null;
+export function resolveUpload(path: string | null | undefined): string | null {
+  /*
+   * Null in, null out — so a caller can write
+   * `resolveUpload(logo) || fallback` and have the fallback actually win.
+   * Returning the bare storage root for an empty path would hand them a
+   * truthy URL that 404s, which is worse than no URL at all.
+   */
+  if (!path) return null;
+
   if (/^https?:\/\//.test(path)) return path;
 
   return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/storage/${path.replace(/^\/?storage\//, "")}`;
