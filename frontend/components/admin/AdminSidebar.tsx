@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import Logo from "@/components/Logo";
 import { subscribe, getOpen, setOpen } from "./drawer-store";
 import {
   Home,
@@ -226,11 +227,10 @@ function SidebarInner({ active }: { active: AdminNavKey }) {
   return (
     <>
       <div className="h-[65px] flex items-center gap-2.5 px-5 border-b border-slate-100 shrink-0">
-        <img
-          src="/logo-trimmed.png"
-          alt="Energy Tail"
-          className="h-9 w-auto object-contain"
-        />
+        {/* The shared component, not another <img>: the admin sidebar was
+            the last place still naming the file itself, which is how the
+            logo drifted out of step here before. */}
+        <Logo size="compact" />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
