@@ -18,7 +18,7 @@ export default function Logo({
   return (
     <div className="flex items-center">
       <Image
-        src="/logo-trimmed.png"
+        src="/logo-v2.png"
         alt="Energy Tail"
         width={160}
         height={75}
