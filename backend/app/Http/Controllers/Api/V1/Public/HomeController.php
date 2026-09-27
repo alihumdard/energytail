@@ -47,14 +47,29 @@ class HomeController extends Controller
      */
     private function stats(): array
     {
+        /*
+         * The same published() + notExpired() the job board itself uses.
+         *
+         * Counting status alone included jobs whose deadline had passed and
+         * ones with a future published_at, so the headline read "51 open
+         * jobs" while the board listed 25 — the visitor's first click
+         * contradicted the number that brought them there.
+         */
         return [
-            'jobs' => Job::query()->where('status', Job::STATUS_PUBLISHED)->count(),
+            'jobs' => Job::query()->published()->notExpired()->count(),
             'companies' => Company::query()->active()->count(),
+            // Distinct countries among those same live jobs, not every job
+            // ever published.
             'countries' => (int) Job::query()
-                ->where('status', Job::STATUS_PUBLISHED)
+                ->published()
+                ->notExpired()
+                ->whereNotNull('country_id')
                 ->distinct()
                 ->count('country_id'),
-            'articles' => Article::query()->where('status', Article::STATUS_PUBLISHED)->count(),
+            'articles' => Article::query()
+                ->where('status', Article::STATUS_PUBLISHED)
+                ->where('published_at', '<=', now())
+                ->count(),
         ];
     }
 
