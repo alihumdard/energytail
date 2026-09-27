@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 use App\Http\Controllers\Controller;
 use App\Models\Article;
 use App\Models\Company;
+use App\Models\Country;
 use App\Models\Job;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -48,28 +49,33 @@ class HomeController extends Controller
     private function stats(): array
     {
         /*
-         * The same published() + notExpired() the job board itself uses.
+         * Totals from the database, not the subset the public pages list.
          *
-         * Counting status alone included jobs whose deadline had passed and
-         * ones with a future published_at, so the headline read "51 open
-         * jobs" while the board listed 25 — the visitor's first click
-         * contradicted the number that brought them there.
+         * These read as the site's scale rather than as today's inventory,
+         * which is what the strip is for: a figure that dropped every time
+         * one vacancy expired looked like the site shrinking. The job board
+         * and the article list still show only what is live, so a visitor
+         * who clicks through sees fewer — the counters are a claim about the
+         * platform, not a promise about the next page.
          */
         return [
-            'jobs' => Job::query()->published()->notExpired()->count(),
-            'companies' => Company::query()->active()->count(),
-            // Distinct countries among those same live jobs, not every job
-            // ever published.
-            'countries' => (int) Job::query()
+            'jobs' => Job::query()->count(),
+            'companies' => Company::query()->count(),
+            'countries' => Country::query()->active()->count(),
+            'articles' => Article::query()->count(),
+
+            /*
+             * What the board will actually show, for the hero sentence.
+             * That line says "N open roles", which a visitor disproves on
+             * their first click if it quotes the total instead.
+             */
+            'open_jobs' => Job::query()->published()->notExpired()->count(),
+            'hiring_countries' => (int) Job::query()
                 ->published()
                 ->notExpired()
                 ->whereNotNull('country_id')
                 ->distinct()
                 ->count('country_id'),
-            'articles' => Article::query()
-                ->where('status', Article::STATUS_PUBLISHED)
-                ->where('published_at', '<=', now())
-                ->count(),
         ];
     }
 

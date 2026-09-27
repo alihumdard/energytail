@@ -684,10 +684,15 @@ export interface BillingOverview {
 /** Everything the homepage needs, in one payload. */
 export interface HomePayload {
   stats: {
+    /** Totals across the database — the scale strip under the hero. */
     jobs: number;
     companies: number;
     countries: number;
     articles: number;
+
+    /** What the board will actually list — used by the hero sentence. */
+    open_jobs: number;
+    hiring_countries: number;
   };
   categories: {
     name: string;

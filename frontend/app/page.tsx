@@ -191,10 +191,14 @@ export default async function HomePage() {
               which a visitor disproves the moment they reach the board.
             */}
             <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-300 md:text-lg">
-              {stats.jobs.toLocaleString()} open{" "}
-              {stats.jobs === 1 ? "role" : "roles"} from {stats.companies}{" "}
+              {/* open_jobs and hiring_countries, not the totals in the strip
+                  below: this sentence says "open roles", and the board will
+                  show that number on the visitor's first click. */}
+              {stats.open_jobs.toLocaleString()} open{" "}
+              {stats.open_jobs === 1 ? "role" : "roles"} from {stats.companies}{" "}
               {stats.companies === 1 ? "employer" : "employers"} across{" "}
-              {stats.countries} {stats.countries === 1 ? "country" : "countries"} — in Oil
+              {stats.hiring_countries}{" "}
+              {stats.hiring_countries === 1 ? "country" : "countries"} — in Oil
               &amp; Gas, Renewable Energy, LNG, Petrochemicals, Power and Offshore.
             </p>
           </div>
