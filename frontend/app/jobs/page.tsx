@@ -88,13 +88,22 @@ export default async function JobsPage({
     fetchPublic<Paginated<JobSummary>>("/jobs", {
       params: { ...active, ...(sort ? { sort } : {}), page, per_page: 15 },
     }),
+    /*
+     * with_jobs: only the countries, categories and industries that
+     * currently hold a live job. Offering all 198 countries when 12 have
+     * openings meant most picks returned "no jobs found", and the length
+     * of the list read as a claim about how far the board reaches.
+     */
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/countries", {
+      params: { with_jobs: 1 },
       revalidate: 30,
     }),
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/job-categories", {
+      params: { with_jobs: 1 },
       revalidate: 30,
     }),
     fetchPublic<{ data: NamedRef[] }>("/taxonomies/industries", {
+      params: { with_jobs: 1 },
       revalidate: 30,
     }),
   ]);

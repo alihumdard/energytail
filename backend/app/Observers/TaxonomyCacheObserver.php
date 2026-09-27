@@ -27,6 +27,12 @@ class TaxonomyCacheObserver
         'public.tags',
         'public.taxonomies.all',
 
+        // The job-board variants: these depend on which jobs are live, so a
+        // job published, closed or expiring changes them too.
+        'public.countries.with_jobs',
+        'public.job_categories.with_jobs',
+        'public.industries.with_jobs',
+
         // The homepage caches its whole payload, category tiles included, so
         // it has to be dropped here too. Without this, ticking "Featured" on
         // a category did nothing visible for up to five minutes, which reads

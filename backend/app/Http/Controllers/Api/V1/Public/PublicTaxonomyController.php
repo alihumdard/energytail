@@ -7,6 +7,7 @@ use App\Models\ArticleCategory;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Industry;
+use App\Models\Job;
 use App\Models\JobCategory;
 use App\Models\Skill;
 use App\Models\Tag;
@@ -32,10 +33,32 @@ class PublicTaxonomyController extends Controller
 {
     private const CACHE_MINUTES = 60;
 
-    public function countries(): JsonResponse
+    /**
+     * Countries, optionally only those a visitor can actually filter by.
+     *
+     * `with_jobs=1` narrows the list to countries holding at least one live
+     * job. The job board asks for that: offering all 198 when 12 have
+     * openings means most picks return "no jobs found", and the length of
+     * the list reads as a claim about the board's reach.
+     *
+     * The unfiltered list stays the default, because the company profile
+     * and the admin screens are choosing where something *is*, not
+     * filtering what exists.
+     */
+    public function countries(Request $request): JsonResponse
     {
-        $data = Cache::remember('public.countries', now()->addMinutes(self::CACHE_MINUTES),
+        $withJobs = $request->boolean('with_jobs');
+        $key = $withJobs ? 'public.countries.with_jobs' : 'public.countries';
+
+        $data = Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES),
             fn () => Country::active()->ordered()
+                ->when($withJobs, fn ($q) => $q->whereIn(
+                    'id',
+                    Job::query()->published()->notExpired()
+                        ->whereNotNull('country_id')
+                        ->distinct()
+                        ->pluck('country_id'),
+                ))
                 ->get(['id', 'name', 'slug', 'code', 'flag_emoji', 'region'])
                 ->toArray()
         );
@@ -61,10 +84,21 @@ class PublicTaxonomyController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    public function industries(): JsonResponse
+    /** `with_jobs=1` keeps only industries holding a live job — see countries(). */
+    public function industries(Request $request): JsonResponse
     {
-        $data = Cache::remember('public.industries', now()->addMinutes(self::CACHE_MINUTES),
+        $withJobs = $request->boolean('with_jobs');
+        $key = $withJobs ? 'public.industries.with_jobs' : 'public.industries';
+
+        $data = Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES),
             fn () => Industry::active()->ordered()
+                ->when($withJobs, fn ($q) => $q->whereIn(
+                    'id',
+                    Job::query()->published()->notExpired()
+                        ->whereNotNull('industry_id')
+                        ->distinct()
+                        ->pluck('industry_id'),
+                ))
                 ->get(['id', 'name', 'slug', 'emoji', 'color', 'description'])
                 ->toArray()
         );
@@ -72,10 +106,21 @@ class PublicTaxonomyController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    public function jobCategories(): JsonResponse
+    /** `with_jobs=1` keeps only categories holding a live job — see countries(). */
+    public function jobCategories(Request $request): JsonResponse
     {
-        $data = Cache::remember('public.job_categories', now()->addMinutes(self::CACHE_MINUTES),
+        $withJobs = $request->boolean('with_jobs');
+        $key = $withJobs ? 'public.job_categories.with_jobs' : 'public.job_categories';
+
+        $data = Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES),
             fn () => JobCategory::active()->ordered()
+                ->when($withJobs, fn ($q) => $q->whereIn(
+                    'id',
+                    Job::query()->published()->notExpired()
+                        ->whereNotNull('job_category_id')
+                        ->distinct()
+                        ->pluck('job_category_id'),
+                ))
                 ->get(['id', 'parent_id', 'name', 'slug', 'emoji', 'color', 'description', 'is_featured'])
                 ->toArray()
         );
