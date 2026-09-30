@@ -24,7 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fetchPublic } from "@/lib/api/server";
-import { articleThumbnail, resolveUpload } from "@/lib/thumbnails";
+import { articleThumbnail, jobThumbnail, resolveUpload } from "@/lib/thumbnails";
 import JsonLd from "@/lib/seo/JsonLd";
 import { websiteSchema } from "@/lib/seo/schemas";
 import type { HomePayload } from "@/lib/api/types";
@@ -396,55 +396,64 @@ export default async function HomePage() {
                 return (
                   <article
                     key={job.id}
-                    className="group relative flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/50"
+                    className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/50"
                   >
-                    {job.is_featured && (
-                      <span className="absolute -top-2.5 right-4 flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm">
-                        <Star size={11} className="fill-amber-950" />
-                        Featured
-                      </span>
-                    )}
-
-                    <div className="flex items-start gap-3">
+                    <Link
+                      href={`/jobs/${job.slug}`}
+                      className="relative block h-40 shrink-0 overflow-hidden bg-slate-200"
+                    >
                       <img
-                        src={
-                          // resolveUpload, not the raw column: logo_path is
-                          // stored relative ("companies/abc.jpg") and the
-                          // files are served from the API host, so passing it
-                          // straight to src asked this host for a path that
-                          // does not exist here.
-                          resolveUpload(job.company?.logo_path) ||
-                          companyFallbackImage(job.company?.slug ?? job.slug)
-                        }
-                        alt=""
-                        className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200/60"
-                      />
-                      <div className="min-w-0 flex-1 pt-0.5">
-                        <h3 className="font-bold leading-snug text-slate-900">
-                          <Link
-                            href={`/jobs/${job.slug}`}
-                            className="transition-colors group-hover:text-blue-600"
-                          >
-                            {titleCase(job.title)}
-                          </Link>
-                        </h3>
-                        {job.company && (
-                          <Link
-                            href={`/companies/${job.company.slug}`}
-                            className="text-sm text-slate-500 hover:text-blue-600"
-                          >
-                            {job.company.name}
-                          </Link>
+                        src={jobThumbnail(
+                          job.category?.slug ?? null,
+                          job.slug,
+                          job.featured_image_path ?? null,
                         )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3.5 flex flex-wrap gap-1.5">
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
                       {job.category && (
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm">
                           {job.category.name}
                         </span>
                       )}
+                      {job.is_featured && (
+                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm">
+                          <Star size={11} className="fill-amber-950" />
+                          Featured
+                        </span>
+                      )}
+                    </Link>
+
+                    <div className="flex flex-1 flex-col p-5">
+                    <h3 className="font-bold leading-snug text-slate-900">
+                      <Link
+                        href={`/jobs/${job.slug}`}
+                        className="transition-colors group-hover:text-blue-600"
+                      >
+                        {titleCase(job.title)}
+                      </Link>
+                    </h3>
+                    {job.company && (
+                      <Link
+                        href={`/companies/${job.company.slug}`}
+                        className="mt-2 flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600"
+                      >
+                        <img
+                          // resolveUpload, not the raw column: logo_path is
+                          // stored relative and served from the API host.
+                          src={
+                            resolveUpload(job.company.logo_path) ||
+                            companyFallbackImage(job.company.slug)
+                          }
+                          alt=""
+                          className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200/60"
+                        />
+                        <span className="truncate">{job.company.name}</span>
+                      </Link>
+                    )}
+
+                    <div className="mt-3.5 flex flex-wrap gap-1.5">
                       {job.employment_type && (
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                           {humanise(job.employment_type)}
@@ -483,6 +492,7 @@ export default async function HomePage() {
                         View details
                         <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
                       </Link>
+                    </div>
                     </div>
                   </article>
                 );

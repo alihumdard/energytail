@@ -710,6 +710,7 @@ export interface HomePayload {
     is_featured: boolean;
     is_urgent: boolean;
     location_label: string | null;
+    featured_image_path?: string | null;
     published_at: string | null;
     /** Null when the employer hid the salary — omitted, not just unrendered. */
     salary_min: string | number | null;
