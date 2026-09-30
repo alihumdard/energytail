@@ -389,7 +389,7 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {jobs.map((job) => {
                 const salary = salaryLabel(job);
 
@@ -400,7 +400,7 @@ export default async function HomePage() {
                   >
                     <Link
                       href={`/jobs/${job.slug}`}
-                      className="relative block h-40 shrink-0 overflow-hidden bg-slate-200"
+                      className="relative block h-36 shrink-0 overflow-hidden bg-slate-200"
                     >
                       <img
                         src={jobThumbnail(
@@ -425,74 +425,75 @@ export default async function HomePage() {
                       )}
                     </Link>
 
-                    <div className="flex flex-1 flex-col p-5">
-                    <h3 className="font-bold leading-snug text-slate-900">
-                      <Link
-                        href={`/jobs/${job.slug}`}
-                        className="transition-colors group-hover:text-blue-600"
-                      >
-                        {titleCase(job.title)}
-                      </Link>
-                    </h3>
-                    {job.company && (
-                      <Link
-                        href={`/companies/${job.company.slug}`}
-                        className="mt-2 flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600"
-                      >
-                        <img
-                          // resolveUpload, not the raw column: logo_path is
-                          // stored relative and served from the API host.
-                          src={
-                            resolveUpload(job.company.logo_path) ||
-                            companyFallbackImage(job.company.slug)
-                          }
-                          alt=""
-                          className="h-6 w-6 shrink-0 rounded-md object-cover ring-1 ring-slate-200/60"
-                        />
-                        <span className="truncate">{job.company.name}</span>
-                      </Link>
-                    )}
-
-                    <div className="mt-3.5 flex flex-wrap gap-1.5">
-                      {job.employment_type && (
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                          {humanise(job.employment_type)}
-                        </span>
+                    <div className="flex flex-1 flex-col p-4">
+                      <h3 className="line-clamp-1 font-bold leading-snug text-slate-900">
+                        <Link
+                          href={`/jobs/${job.slug}`}
+                          className="transition-colors group-hover:text-blue-600"
+                        >
+                          {titleCase(job.title)}
+                        </Link>
+                      </h3>
+                      {job.company && (
+                        <Link
+                          href={`/companies/${job.company.slug}`}
+                          className="mt-1.5 flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600"
+                        >
+                          <img
+                            // resolveUpload, not the raw column: logo_path is
+                            // stored relative and served from the API host.
+                            src={
+                              resolveUpload(job.company.logo_path) ||
+                              companyFallbackImage(job.company.slug)
+                            }
+                            alt=""
+                            className="h-5 w-5 shrink-0 rounded object-cover ring-1 ring-slate-200/60"
+                          />
+                          <span className="truncate">{job.company.name}</span>
+                        </Link>
                       )}
-                      {job.is_urgent && (
-                        <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                          Urgent
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="mt-4 flex-1 space-y-1.5 text-xs text-slate-500">
-                      <p className="flex items-center gap-1.5">
-                        <MapPin size={13} className="shrink-0 text-slate-400" />
-                        {job.is_remote
-                          ? "Remote"
-                          : job.location_label ??
-                            [job.city?.name, job.country?.name].filter(Boolean).join(", ") ??
-                            "—"}
-                      </p>
-                      {salary && (
-                        <p className="text-sm font-semibold text-slate-800">{salary}</p>
-                      )}
-                    </div>
+                      <div className="mt-3 flex flex-1 flex-col justify-start gap-1.5 text-xs text-slate-500">
+                        <p className="flex items-center gap-1.5">
+                          <MapPin size={13} className="shrink-0 text-slate-400" />
+                          <span className="truncate">
+                            {job.is_remote
+                              ? "Remote"
+                              : job.location_label ??
+                                ([job.city?.name, job.country?.name].filter(Boolean).join(", ") ||
+                                  "—")}
+                          </span>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {salary && (
+                            <span className="text-sm font-semibold text-slate-800">{salary}</span>
+                          )}
+                          {job.employment_type && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                              {humanise(job.employment_type)}
+                            </span>
+                          )}
+                          {job.is_urgent && (
+                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                              Urgent
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                      <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <Clock size={12} className="shrink-0" />
-                        Posted {formatDate(job.published_at)}
-                      </p>
-                      <Link
-                        href={`/jobs/${job.slug}`}
-                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700"
-                      >
-                        View details
-                        <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
-                      </Link>
-                    </div>
+                      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                        <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                          <Clock size={12} className="shrink-0" />
+                          Posted {formatDate(job.published_at)}
+                        </p>
+                        <Link
+                          href={`/jobs/${job.slug}`}
+                          className="flex items-center gap-1 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700"
+                        >
+                          View details
+                          <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+                        </Link>
+                      </div>
                     </div>
                   </article>
                 );
