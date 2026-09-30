@@ -389,7 +389,7 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {jobs.map((job) => {
                 const salary = salaryLabel(job);
 
@@ -400,7 +400,7 @@ export default async function HomePage() {
                   >
                     <Link
                       href={`/jobs/${job.slug}`}
-                      className="relative block h-36 shrink-0 overflow-hidden bg-slate-200"
+                      className="relative block aspect-square shrink-0 overflow-hidden bg-slate-200"
                     >
                       <img
                         src={jobThumbnail(
@@ -413,12 +413,12 @@ export default async function HomePage() {
                       />
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
                       {job.category && (
-                        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm">
+                        <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm">
                           {job.category.name}
                         </span>
                       )}
                       {job.is_featured && (
-                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm">
+                        <span className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-sm">
                           <Star size={11} className="fill-amber-950" />
                           Featured
                         </span>
