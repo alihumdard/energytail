@@ -400,7 +400,7 @@ export default async function HomePage() {
                   >
                     <Link
                       href={`/jobs/${job.slug}`}
-                      className="relative block aspect-square shrink-0 overflow-hidden bg-slate-200"
+                      className="relative block h-40 shrink-0 overflow-hidden bg-slate-200"
                     >
                       <img
                         src={jobThumbnail(
